@@ -23,7 +23,7 @@ public class HoneypotController : ControllerBase
     }
 
     /// <summary>
-    /// Analyze a honeypot-captured message for scam indicators, update session, extract intelligence, and generate an agent reply when applicable.
+    /// Analyze a aegis-captured message for scam indicators, update session, extract intelligence, and generate an agent reply when applicable.
     /// </summary>
     [HttpPost("analyze")]
     [Consumes("application/json")]

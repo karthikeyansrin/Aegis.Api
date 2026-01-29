@@ -6,6 +6,6 @@ namespace Aegis.Api.Controllers
     internal static class AnalysisController_Removed
     {
         // Intentionally empty. The public AnalysisController endpoint was disabled to present
-        // a single public API (`/api/honeypot/analyze`) for automated evaluators.
+        // a single public API (`/api/aegis/analyze`) for automated evaluators.
     }
 }

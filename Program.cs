@@ -56,9 +56,9 @@ builder.Services.AddSwaggerGen(c =>
     }
 });
 
-// Configuration: read environment variables (e.g. HONEYPOT_API_KEY)
+// Configuration: read environment variables (e.g. AEGIS_API_KEY)
 builder.Configuration.AddEnvironmentVariables();
-var apiKey = builder.Configuration["HONEYPOT_API_KEY"] ?? "dev-secret-key";
+var apiKey = builder.Configuration["AEGIS_API_KEY"] ?? "dev-secret-key";
 builder.Services.AddSingleton(new ApiKeyOptions(apiKey));
 
 // Register application services

@@ -1,6 +1,6 @@
 # Aegis API
 
-This is a lightweight ASP.NET Core (.NET 8) Web API for the "Agentic Honeypot for Scam Detection & Intelligence Extraction" hackathon project.
+This is a lightweight ASP.NET Core (.NET 8) Web API for the "Agentic AEGIS for Scam Detection & Intelligence Extraction" hackathon project.
 
 The API provides a single endpoint for analyzing messages, maintaining conversation state, extracting intelligence, and generating agent replies.
 
@@ -9,12 +9,12 @@ The API provides a single endpoint for analyzing messages, maintaining conversat
 1.  **Set Environment Variables:**
     The API requires two secrets to be set as environment variables. For local development, you can set them in your shell.
 
-    *   `HONEYPOT_API_KEY`: The secret key for authenticating to this API.
+    *   `AEGIS_API_KEY`: The secret key for authenticating to this API.
     *   `GROQ_API_KEY`: The API key for the Groq service, used for LLM-based analysis.
 
     **PowerShell:**
     ```powershell
-    $env:HONEYPOT_API_KEY = 'dev-secret-key'
+    $env:AEGIS_API_KEY = 'dev-secret-key'
     $env:GROQ_API_KEY = 'your-groq-api-key'
     ```
 
@@ -30,8 +30,8 @@ The API provides a single endpoint for analyzing messages, maintaining conversat
 
 There is only one public-facing endpoint for analysis.
 
-*   **Endpoint:** `POST /api/honeypot/analyze`
-*   **Authentication:** `Authorization: Bearer <HONEYPOT_API_KEY>`
+*   **Endpoint:** `POST /api/aegis/analyze`
+*   **Authentication:** `Authorization: Bearer <AEGIS_API_KEY>`
 
 ### Sample Request
 
@@ -39,7 +39,7 @@ The request body must be a JSON object with a `session_id` and a `message`.
 
 **cURL Example:**
 ```bash
-curl -X POST http://localhost:5000/api/honeypot/analyze \
+curl -X POST http://localhost:5000/api/aegis/analyze \
   -H "Authorization: Bearer dev-secret-key" \
   -H "Content-Type: application/json" \
   -d '{
