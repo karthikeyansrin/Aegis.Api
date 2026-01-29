@@ -4,7 +4,6 @@ using System.Text.Json.Serialization;
 using Aegis.Api.Middleware;
 using Aegis.Api.Services;
 using System.Diagnostics;
-using System.Text.Json;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -147,7 +146,5 @@ app.MapControllers();
 // Ensure graceful shutdown disposes store
 var store = app.Services.GetService<ConversationStore>();
 app.Lifetime.ApplicationStopping.Register(() => store?.Dispose());
-
-app.Run();
 
 app.Run();

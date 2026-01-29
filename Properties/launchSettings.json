@@ -1,6 +1,14 @@
 {
-  "environmentVariables": {
-    "AEGIS_API_KEY": "AEGIS-HPK-2026-X9F7Q2M8L4ZC1R6A",
-    "GROQ_API_KEY": "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"
+  "profiles": {
+    "Aegis.Api": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "applicationUrl": "http://localhost:5000",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "HONEYPOT_API_KEY": "AEGIS-HPK-2026-X9F7Q2M8L4ZC1R6A",
+        "GROQ_API_KEY": "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"
+      }
+    }
   }
 }

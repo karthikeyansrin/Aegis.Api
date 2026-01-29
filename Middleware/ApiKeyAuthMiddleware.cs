@@ -23,36 +23,30 @@ public class ApiKeyAuthMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var path = context.Request.Path.Value ?? string.Empty;
+        var expectedKey = Environment.GetEnvironmentVariable("HONEYPOT_API_KEY");
 
-        // Allow anonymous access to swagger & health checks
-        if (path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith("/health", StringComparison.OrdinalIgnoreCase))
+        if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader))
         {
-            await _next(context);
-            return;
-        }
-
-        if (!context.Request.Headers.TryGetValue(AuthorizationHeader, out var authHeader))
-        {
-            context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             await context.Response.WriteAsJsonAsync(new { error = "Missing Authorization header" });
             return;
         }
 
-        var header = authHeader.ToString();
-        if (!header.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase))
+        var headerValue = authHeader.ToString();
+
+        if (!headerValue.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
         {
-            context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             await context.Response.WriteAsJsonAsync(new { error = "Invalid Authorization scheme" });
             return;
         }
 
-        var token = header.Substring(BearerPrefix.Length).Trim();
+        var token = headerValue.Substring("Bearer ".Length).Trim();
 
-        if (!string.Equals(token, _options.Key, StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(expectedKey) ||
+            !string.Equals(token, expectedKey.Trim(), StringComparison.Ordinal))
         {
-            context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             await context.Response.WriteAsJsonAsync(new { error = "Invalid API key" });
             return;
         }

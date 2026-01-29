@@ -28,6 +28,8 @@ public class IntelligenceExtractionService
     /// </summary>
     public async Task<ExtractedIntelligence> ExtractAsync(string sessionId, string message, bool useLLMFallback = true, CancellationToken ct = default)
     {
+        Console.WriteLine($"[DEBUG] Raw message for extraction: {message}");
+
         var intel = new ExtractedIntelligence
         {
             UpiIds = new List<string>(),
@@ -47,10 +49,12 @@ public class IntelligenceExtractionService
                     if (!intel.UpiIds.Contains(v)) intel.UpiIds.Add(v);
                 }
 
+                Console.WriteLine($"[DEBUG] Extracted UPI IDs: {string.Join(",", intel.UpiIds)}");
+
                 // Phone numbers
                 foreach (Match m in PhoneRegex.Matches(message))
                 {
-                    var v = Regex.Replace(m.Value, "[\s-]", string.Empty);
+                    var v = Regex.Replace(m.Value, "[\\s-]", string.Empty);
                     if (!intel.PhoneNumbers.Contains(v)) intel.PhoneNumbers.Add(v);
                 }
 
@@ -166,8 +170,41 @@ public class IntelligenceExtractionService
             {
                 if (!string.IsNullOrWhiteSpace(sessionId))
                 {
+                    // IMPORTANT: reuse existing session instance
                     var session = _store.GetOrCreateSession(sessionId);
-                    session.MergeExtractedIntelligence(intel);
+
+                    // Merge directly into session.AggregatedIntelligence using simple loops for clarity
+                    foreach (var upiId in intel.UpiIds)
+                    {
+                        if (!session.AggregatedIntelligence.UpiIds.Contains(upiId))
+                        {
+                            session.AggregatedIntelligence.UpiIds.Add(upiId);
+                        }
+                    }
+
+                    foreach (var phone in intel.PhoneNumbers)
+                    {
+                        if (!session.AggregatedIntelligence.PhoneNumbers.Contains(phone))
+                        {
+                            session.AggregatedIntelligence.PhoneNumbers.Add(phone);
+                        }
+                    }
+
+                    foreach (var url in intel.Urls)
+                    {
+                        if (!session.AggregatedIntelligence.Urls.Contains(url))
+                        {
+                            session.AggregatedIntelligence.Urls.Add(url);
+                        }
+                    }
+
+                    foreach (var account in intel.BankAccounts)
+                    {
+                        if (!session.AggregatedIntelligence.BankAccounts.Any(x => x.AccountNumber == account.AccountNumber))
+                        {
+                            session.AggregatedIntelligence.BankAccounts.Add(account);
+                        }
+                    }
 
                     // Return a copy of the aggregated intelligence so callers receive accumulated data
                     return CopyExtractedIntelligence(session.AggregatedIntelligence);
@@ -192,6 +229,7 @@ public class IntelligenceExtractionService
 
         // If we couldn't merge into a session, return the per-request intelligence (possibly empty)
         return intel;
+
     }
 
     private static ExtractedIntelligence CopyExtractedIntelligence(ExtractedIntelligence? src)

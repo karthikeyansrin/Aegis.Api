@@ -23,6 +23,8 @@ public class GroqService : IGroqService
 
     public async Task<ChatCompletionResult> CreateChatCompletionAsync(string model, IEnumerable<ChatMessage> messages, CancellationToken ct = default)
     {
+        Console.WriteLine("[DEBUG] Calling Groq API...");
+
         var payload = new
         {
             model,
@@ -88,6 +90,8 @@ public class GroqService : IGroqService
                 await Task.Delay(200 * attempt, ct);
             }
         }
+
+        Console.WriteLine("[DEBUG] Groq API call completed...");
 
         return new ChatCompletionResult { Success = false };
     }

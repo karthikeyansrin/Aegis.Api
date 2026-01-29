@@ -1,5 +1,6 @@
 using System.Threading;
 using Aegis.Api.Models;
+using Aegis.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Aegis.Api.Controllers;
@@ -43,24 +44,23 @@ public class HoneypotController : ControllerBase
             var analysis = await _detector.AnalyzeAsync(analysisRequest, cancellationToken);
 
             // 2. Update conversation state
-            try
-            {
-                var session = _store.GetOrCreateSession(request.SessionId);
-                session.AppendMessage("user", request.Message, request.Timestamp);
-            }
-            catch
-            {
-                // continue even if session update fails
-            }
+           
+            var session = _store.GetOrCreateSession(request.SessionId);
+            session.AppendMessage("user", request.Message, request.Timestamp);
 
             // 3. Extract intelligence (merge into session)
-            var extracted = await _extractor.ExtractAsync(request.SessionId, request.Message, true, cancellationToken);
+            var extracted = await _extractor.ExtractAsync(
+                request.SessionId, request.Message, true, cancellationToken
+            );
+
 
             // 4. Generate agent reply only if scam
             string? agentReply = null;
             try
             {
-                agentReply = await _agent.GenerateAgentReplyAsync(request.SessionId, request.Message, analysis.IsScam, cancellationToken);
+                agentReply = await _agent.GenerateAgentReplyAsync(
+                    request.SessionId, request.Message, analysis.IsScam, cancellationToken
+                );
             }
             catch
             {
@@ -82,7 +82,7 @@ public class HoneypotController : ControllerBase
                 IsScam = analysis.IsScam,
                 ScamType = analysis.Summary,
                 Confidence = confidence,
-                ExtractedIntelligence = extracted ?? new ExtractedIntelligence(),
+                ExtractedIntelligence = extracted,
                 AgentReply = agentReply ?? string.Empty
             };
 

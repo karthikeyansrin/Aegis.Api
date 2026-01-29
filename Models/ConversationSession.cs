@@ -72,7 +72,6 @@ namespace Aegis.Api.Models
                 // merge UPI ids
                 if (intel.UpiIds != null)
                 {
-                    AggregatedIntelligence.UpiIds ??= new List<string>();
                     foreach (var id in intel.UpiIds)
                     {
                         if (!AggregatedIntelligence.UpiIds.Contains(id)) AggregatedIntelligence.UpiIds.Add(id);
@@ -82,7 +81,6 @@ namespace Aegis.Api.Models
                 // merge phone numbers
                 if (intel.PhoneNumbers != null)
                 {
-                    AggregatedIntelligence.PhoneNumbers ??= new List<string>();
                     foreach (var n in intel.PhoneNumbers)
                     {
                         if (!AggregatedIntelligence.PhoneNumbers.Contains(n)) AggregatedIntelligence.PhoneNumbers.Add(n);
@@ -92,7 +90,6 @@ namespace Aegis.Api.Models
                 // merge urls
                 if (intel.Urls != null)
                 {
-                    AggregatedIntelligence.Urls ??= new List<string>();
                     foreach (var u in intel.Urls)
                     {
                         if (!AggregatedIntelligence.Urls.Contains(u)) AggregatedIntelligence.Urls.Add(u);
@@ -102,7 +99,6 @@ namespace Aegis.Api.Models
                 // merge bank accounts by account number
                 if (intel.BankAccounts != null)
                 {
-                    AggregatedIntelligence.BankAccounts ??= new List<BankAccount>();
                     var existing = new HashSet<string>(AggregatedIntelligence.BankAccounts.Select(b => b.AccountNumber));
                     foreach (var b in intel.BankAccounts)
                     {

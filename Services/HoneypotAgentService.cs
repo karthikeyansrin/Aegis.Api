@@ -127,16 +127,16 @@ public class HoneypotAgentService
         text = Regex.Replace(text, @"https?://\S+|www\.\S+", "[redacted]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         // IFSC (e.g., ABCD0EFGHIJ)
-        text = Regex.Replace(text, "\b[a-zA-Z]{4}0[a-zA-Z0-9]{6}\b", "[redacted]", RegexOptions.Compiled);
+        text = Regex.Replace(text, @"\b[a-zA-Z]{4}0[a-zA-Z0-9]{6}\b", "[redacted]", RegexOptions.Compiled);
 
         // UPI ids like name@bank
-        text = Regex.Replace(text, "\b[\w.%-]{2,}@[A-Za-z]{2,}\b", "[redacted]", RegexOptions.Compiled);
+        text = Regex.Replace(text, @"\b[\w.%-]{2,}@[A-Za-z]{2,}\b", "[redacted]", RegexOptions.Compiled);
 
         // Phone numbers (10-14 digits, with optional separators)
         text = Regex.Replace(text, @"(?<!\d)(?:\+?91[\s-]?)?(?:\d[\s-]?){10,14}(?!\d)", "[redacted]", RegexOptions.Compiled);
 
         // Long digit sequences (account numbers) 6+ digits
-        text = Regex.Replace(text, "(?<!\d)\d{6,}(?!\d)", "[redacted]", RegexOptions.Compiled);
+        text = Regex.Replace(text, @"(?<!\d)\d{6,}(?!\d)", "[redacted]", RegexOptions.Compiled);
 
         return text;
     }
@@ -149,10 +149,10 @@ public class HoneypotAgentService
         var lower = text.ToLowerInvariant();
 
         // Reject if asking for OTP/PIN/password or other sensitive data
-        if (Regex.IsMatch(lower, "\b(otp|pin|password|passcode|one-time|one time)\b")) return true;
+        if (Regex.IsMatch(lower, @"\b(otp|pin|password|passcode|one-time|one time)\b")) return true;
 
         // Reject if revealing system identity
-        if (Regex.IsMatch(lower, "\b(i am a bot|i am an ai|as an ai|as a bot)\b")) return true;
+        if (Regex.IsMatch(lower, @"\b(i am a bot|i am an ai|as an ai|as a bot)\b")) return true;
 
         // Reject if asking for contact details or providing them
         if (Regex.IsMatch(lower, "(phone|call me|contact me|email|whatsapp|telegram|upi|bank account|ifsc|account number)")) return true;

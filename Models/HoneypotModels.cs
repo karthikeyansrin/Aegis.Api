@@ -49,7 +49,7 @@ namespace Aegis.Api.Models
     public string AgentReply { get; init; } = string.Empty;
 
         [JsonPropertyName("extracted_intelligence")]
-    public ExtractedIntelligence ExtractedIntelligence { get; init; } = new ExtractedIntelligence();
+    public ExtractedIntelligence ExtractedIntelligence { get; set; } = null!;
 
         [JsonPropertyName("conversation_state")]
         public string? ConversationState { get; init; }
