@@ -10,13 +10,11 @@ public sealed class IntelligenceExtractionService
     private readonly ConversationStore _store;
 
     private static readonly Regex UpiRegex =
-        new(@"\b[\w.\-]{2,}@(?!.*\b(ybl|apl)\b)[A-Za-z]{2,}\b", RegexOptions.Compiled);
-
-    private static readonly Regex UpiIdRegex =
-        new(@"\b[\w.\-]+@(ybl|apl)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    new(@"\b[a-zA-Z0-9._-]{2,}@[a-zA-Z]{2,15}\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex PhoneRegex =
-        new(@"(?<!\d)(?:\+?91[\s-]?)?(?:\d[\s-]?){10,14}(?!\d)", RegexOptions.Compiled);
+        new(@"(?<!\d)(?:\+?91[\s-]?)?(?:\d[\s-]?){10}(?!\d)", RegexOptions.Compiled);
     
     private static readonly Regex UrlRegex =
         new(@"https?://\S+|www\.\S+|\b(?:[\w-]+\.)+[A-Za-z]{2,}\S*\b",
@@ -26,7 +24,7 @@ public sealed class IntelligenceExtractionService
         new(@"\b[A-Za-z]{4}0[A-Za-z0-9]{6}\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     
     private static readonly Regex AccountNumberRegex =
-        new(@"(?<!\d)\d{9,18}(?!\d)", RegexOptions.Compiled);
+        new(@"(?<!\d)\d{11,18}(?!\d)", RegexOptions.Compiled);
     
     public IntelligenceExtractionService(IGroqService groq, ConversationStore store)
     {
@@ -56,13 +54,6 @@ public sealed class IntelligenceExtractionService
             // --------------------
             // REGEX EXTRACTION
             // --------------------
-            
-            foreach (Match m in UpiIdRegex.Matches(message))
-            {
-                var v = m.Value.Trim();
-                if (!target.UpiIds.Contains(v))
-                    target.UpiIds.Add(v);
-            }
 
             foreach (Match m in UpiRegex.Matches(message))
             {
