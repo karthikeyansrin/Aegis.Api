@@ -61,16 +61,16 @@ namespace Aegis.Api.Models
     public sealed class ExtractedIntelligence
     {
     [JsonPropertyName("upi_ids")]
-    public List<string> UpiIds { get; init; } = new List<string>();
+    public List<string> UpiIds { get; } = new List<string>();
 
     [JsonPropertyName("phone_numbers")]
-    public List<string> PhoneNumbers { get; init; } = new List<string>();
+    public List<string> PhoneNumbers { get; } = new List<string>();
 
     [JsonPropertyName("urls")]
-    public List<string> Urls { get; init; } = new List<string>();
+    public List<string> Urls { get; } = new List<string>();
 
     [JsonPropertyName("bank_accounts")]
-    public List<BankAccount> BankAccounts { get; init; } = new List<BankAccount>();
+    public List<BankAccount> BankAccounts { get; } = new List<BankAccount>();
     }
 
     public sealed class BankAccount

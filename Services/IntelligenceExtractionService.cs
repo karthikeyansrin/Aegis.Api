@@ -4,251 +4,204 @@ using Aegis.Api.Models;
 
 namespace Aegis.Api.Services;
 
-public class IntelligenceExtractionService
+public sealed class IntelligenceExtractionService
 {
     private readonly IGroqService _groq;
     private readonly ConversationStore _store;
 
-    private static readonly Regex UpIRegex = new(@"\b[\w.\-]{2,}@[A-Za-z]{2,}\b", RegexOptions.Compiled);
-    private static readonly Regex PhoneRegex = new(@"(?<!\d)(?:\+?91[\s-]?)?(?:\d[\s-]?){10,14}(?!\d)", RegexOptions.Compiled);
-    private static readonly Regex UrlRegex = new(@"https?://\S+|www\.\S+|\b(?:[\w-]+\.)+[A-Za-z]{2,}\S*\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex IfscRegex = new(@"\b[A-Za-z]{4}0[A-Za-z0-9]{6}\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex AccountNumberRegex = new(@"(?<!\d)\d{9,18}(?!\d)", RegexOptions.Compiled);
+    private static readonly Regex UpiRegex =
+        new(@"\b[\w.\-]{2,}@(?!.*\b(ybl|apl)\b)[A-Za-z]{2,}\b", RegexOptions.Compiled);
 
+    private static readonly Regex UpiIdRegex =
+        new(@"\b[\w.\-]+@(ybl|apl)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex PhoneRegex =
+        new(@"(?<!\d)(?:\+?91[\s-]?)?(?:\d[\s-]?){10,14}(?!\d)", RegexOptions.Compiled);
+    
+    private static readonly Regex UrlRegex =
+        new(@"https?://\S+|www\.\S+|\b(?:[\w-]+\.)+[A-Za-z]{2,}\S*\b",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    
+    private static readonly Regex IfscRegex =
+        new(@"\b[A-Za-z]{4}0[A-Za-z0-9]{6}\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    
+    private static readonly Regex AccountNumberRegex =
+        new(@"(?<!\d)\d{9,18}(?!\d)", RegexOptions.Compiled);
+    
     public IntelligenceExtractionService(IGroqService groq, ConversationStore store)
     {
-        _groq = groq ?? throw new ArgumentNullException(nameof(groq));
-        _store = store ?? throw new ArgumentNullException(nameof(store));
+        _groq = groq;
+        _store = store;
     }
-
+    
     /// <summary>
-    /// Extract intelligence from a message. Merge results into the conversation session.
-    /// If no regex matches are found and useLLMFallback is true, an LLM is queried for structured extraction.
-    /// This method always returns an ExtractedIntelligence object (possibly empty) and swallows exceptions.
+    /// Extract intelligence from message and MERGE INTO SESSION.
+    /// Always returns the session's aggregated intelligence.
+    /// Never replaces objects. Never throws.
     /// </summary>
-    public async Task<ExtractedIntelligence> ExtractAsync(string sessionId, string message, bool useLLMFallback = true, CancellationToken ct = default)
+    public async Task<ExtractedIntelligence> ExtractAsync(
+        string sessionId,
+        string message,
+        bool useLLMFallback = true,
+        CancellationToken ct = default)
     {
-        Console.WriteLine($"[DEBUG] Raw message for extraction: {message}");
+        var session = _store.GetOrCreateSession(sessionId);
+        var target = session.AggregatedIntelligence;
 
-        var intel = new ExtractedIntelligence
-        {
-            UpiIds = new List<string>(),
-            PhoneNumbers = new List<string>(),
-            Urls = new List<string>(),
-            BankAccounts = new List<BankAccount>()
-        };
+        if (string.IsNullOrWhiteSpace(message))
+            return target;
 
         try
         {
-            if (!string.IsNullOrWhiteSpace(message))
+            // --------------------
+            // REGEX EXTRACTION
+            // --------------------
+            
+            foreach (Match m in UpiIdRegex.Matches(message))
             {
-                // UPI IDs
-                foreach (Match m in UpIRegex.Matches(message))
+                var v = m.Value.Trim();
+                if (!target.UpiIds.Contains(v))
+                    target.UpiIds.Add(v);
+            }
+
+            foreach (Match m in UpiRegex.Matches(message))
+            {
+                var v = m.Value.Trim();
+                if (!target.UpiIds.Contains(v))
+                    target.UpiIds.Add(v);
+            }
+
+            foreach (Match m in PhoneRegex.Matches(message))
+            {
+                var v = Regex.Replace(m.Value, @"[\s-]", "");
+                if (!target.PhoneNumbers.Contains(v))
+                    target.PhoneNumbers.Add(v);
+            }
+
+            foreach (Match m in UrlRegex.Matches(message))
+            {
+                var v = m.Value.Trim();
+                if (!target.Urls.Contains(v))
+                    target.Urls.Add(v);
+            }
+
+            var ifscs = IfscRegex.Matches(message)
+                .Select(x => x.Value)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            var accounts = AccountNumberRegex.Matches(message)
+                .Select(x => x.Value)
+                .Distinct()
+                .ToArray();
+
+            if (accounts.Length > 0)
+            {
+                var ifsc = ifscs.FirstOrDefault();
+                foreach (var acc in accounts)
                 {
-                    var v = m.Value.Trim();
-                    if (!intel.UpiIds.Contains(v)) intel.UpiIds.Add(v);
-                }
-
-                Console.WriteLine($"[DEBUG] Extracted UPI IDs: {string.Join(",", intel.UpiIds)}");
-
-                // Phone numbers
-                foreach (Match m in PhoneRegex.Matches(message))
-                {
-                    var v = Regex.Replace(m.Value, "[\\s-]", string.Empty);
-                    if (!intel.PhoneNumbers.Contains(v)) intel.PhoneNumbers.Add(v);
-                }
-
-                // URLs
-                foreach (Match m in UrlRegex.Matches(message))
-                {
-                    var v = m.Value.Trim();
-                    if (!intel.Urls.Contains(v)) intel.Urls.Add(v);
-                }
-
-                // IFSC codes
-                var ifscs = IfscRegex.Matches(message).Select(x => x.Value.Trim()).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-                // Account numbers
-                var accounts = AccountNumberRegex.Matches(message).Select(x => x.Value.Trim()).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToArray();
-
-                // Pair account numbers with IFSCs if both present; otherwise store account numbers as bank accounts without IFSC
-                if (accounts.Length > 0)
-                {
-                    if (ifscs.Length > 0)
+                    if (!target.BankAccounts.Any(b => b.AccountNumber == acc))
                     {
-                        // pair first IFSC with each account (best-effort)
-                        var firstIfsc = ifscs[0];
-                        foreach (var acc in accounts)
+                        target.BankAccounts.Add(new BankAccount
                         {
-                            if (!intel.BankAccounts.Any(b => b.AccountNumber == acc))
-                                intel.BankAccounts.Add(new BankAccount { AccountNumber = acc, Ifsc = firstIfsc });
-                        }
-                    }
-                    else
-                    {
-                        foreach (var acc in accounts)
-                        {
-                            if (!intel.BankAccounts.Any(b => b.AccountNumber == acc))
-                                intel.BankAccounts.Add(new BankAccount { AccountNumber = acc, Ifsc = null });
-                        }
-                    }
-                }
-
-                // If no regex matches and fallback allowed, ask LLM for structured extraction
-                var anyFound = (intel.UpiIds.Count > 0) || (intel.PhoneNumbers.Count > 0) || (intel.Urls.Count > 0) || (intel.BankAccounts.Count > 0);
-
-                if (!anyFound && useLLMFallback)
-                {
-                    var messages = new[]
-                    {
-                        new ChatMessage("system", "Extract any UPI ids, phone numbers, URLs, IFSC codes, and bank account numbers from the user's message and return ONLY a JSON object with arrays: upi_ids, phone_numbers, urls, bank_accounts (array of { account_number, ifsc }). Return empty arrays if none found."),
-                        new ChatMessage("user", message)
-                    };
-
-                    var llm = await _groq.CreateChatCompletionAsync("llama-3.1-8b-instant", messages, ct);
-                    if (llm?.Success == true && !string.IsNullOrWhiteSpace(llm.Content))
-                    {
-                        try
-                        {
-                            using var doc = JsonDocument.Parse(llm.Content);
-                            var root = doc.RootElement;
-
-                            if (root.TryGetProperty("upi_ids", out var upiArr) && upiArr.ValueKind == JsonValueKind.Array)
-                            {
-                                foreach (var e in upiArr.EnumerateArray())
-                                {
-                                    var s = e.GetString();
-                                    if (!string.IsNullOrWhiteSpace(s) && !intel.UpiIds.Contains(s)) intel.UpiIds.Add(s);
-                                }
-                            }
-
-                            if (root.TryGetProperty("phone_numbers", out var phoneArr) && phoneArr.ValueKind == JsonValueKind.Array)
-                            {
-                                foreach (var e in phoneArr.EnumerateArray())
-                                {
-                                    var s = e.GetString();
-                                    if (!string.IsNullOrWhiteSpace(s))
-                                    {
-                                        var cleaned = Regex.Replace(s, "[\\s-]", string.Empty);
-                                        if (!intel.PhoneNumbers.Contains(cleaned)) intel.PhoneNumbers.Add(cleaned);
-                                    }
-                                }
-                            }
-
-                            if (root.TryGetProperty("urls", out var urlArr) && urlArr.ValueKind == JsonValueKind.Array)
-                            {
-                                foreach (var e in urlArr.EnumerateArray())
-                                {
-                                    var s = e.GetString();
-                                    if (!string.IsNullOrWhiteSpace(s) && !intel.Urls.Contains(s)) intel.Urls.Add(s);
-                                }
-                            }
-
-                            if (root.TryGetProperty("bank_accounts", out var bankArr) && bankArr.ValueKind == JsonValueKind.Array)
-                            {
-                                foreach (var e in bankArr.EnumerateArray())
-                                {
-                                    if (e.ValueKind != JsonValueKind.Object) continue;
-                                    var acc = e.GetProperty("account_number").GetString();
-                                    var ifsc = e.TryGetProperty("ifsc", out var ifscElem) ? ifscElem.GetString() : null;
-                                    if (!string.IsNullOrWhiteSpace(acc) && !intel.BankAccounts.Any(b => b.AccountNumber == acc))
-                                    {
-                                        intel.BankAccounts.Add(new BankAccount { AccountNumber = acc, Ifsc = ifsc });
-                                    }
-                                }
-                            }
-                        }
-                        catch
-                        {
-                            // ignore parse errors from LLM
-                        }
+                            AccountNumber = acc,
+                            Ifsc = ifsc
+                        });
                     }
                 }
             }
 
-            // Merge into session state (best-effort) and return the aggregated intelligence
-            try
+            // --------------------
+            // LLM FALLBACK
+            // --------------------
+
+            var anyFound =
+                target.UpiIds.Count > 0 ||
+                target.PhoneNumbers.Count > 0 ||
+                target.Urls.Count > 0 ||
+                target.BankAccounts.Count > 0;
+
+            if (!anyFound && useLLMFallback)
             {
-                if (!string.IsNullOrWhiteSpace(sessionId))
+                var messages = new[]
                 {
-                    // IMPORTANT: reuse existing session instance
-                    var session = _store.GetOrCreateSession(sessionId);
+                    new ChatMessage("system",
+                        "You are an intelligence extraction agent. From the user's message, find all UPI IDs, Indian phone numbers, URLs, and bank account numbers with IFSC codes. " +
+                        "Return ONLY a single, valid JSON object with the following structure. Do not include any other text, just the JSON. " +
+                        "Example: {\"upi_ids\": [\"name@bank\"], \"phone_numbers\": [\"919876543210\"], \"urls\": [\"http://example.com\"], \"bank_accounts\": [{\"account_number\": \"123456789012\", \"ifsc\": \"BANK0123456\"}]}."),
+                    new ChatMessage("user", message)
+                };
 
-                    // Merge directly into session.AggregatedIntelligence using simple loops for clarity
-                    foreach (var upiId in intel.UpiIds)
+                var llm = await _groq.CreateChatCompletionAsync(
+                    "llama-3.1-8b-instant",
+                    messages,
+                    ct);
+
+                if (llm?.Success == true && !string.IsNullOrWhiteSpace(llm.Content))
+                {
+                    using var doc = JsonDocument.Parse(llm.Content);
+                    var root = doc.RootElement;
+
+                    if (root.TryGetProperty("upi_ids", out var upiArr))
                     {
-                        if (!session.AggregatedIntelligence.UpiIds.Contains(upiId))
+                        foreach (var e in upiArr.EnumerateArray())
                         {
-                            session.AggregatedIntelligence.UpiIds.Add(upiId);
+                            var s = e.GetString();
+                            if (!string.IsNullOrWhiteSpace(s) && !target.UpiIds.Contains(s))
+                                target.UpiIds.Add(s);
                         }
                     }
 
-                    foreach (var phone in intel.PhoneNumbers)
+                    if (root.TryGetProperty("phone_numbers", out var phoneArr))
                     {
-                        if (!session.AggregatedIntelligence.PhoneNumbers.Contains(phone))
+                        foreach (var e in phoneArr.EnumerateArray())
                         {
-                            session.AggregatedIntelligence.PhoneNumbers.Add(phone);
+                            var s = e.GetString();
+                            if (!string.IsNullOrWhiteSpace(s))
+                            {
+                                var cleaned = Regex.Replace(s, @"[\s-]", "");
+                                if (!target.PhoneNumbers.Contains(cleaned))
+                                    target.PhoneNumbers.Add(cleaned);
+                            }
                         }
                     }
 
-                    foreach (var url in intel.Urls)
+                    if (root.TryGetProperty("urls", out var urlArr))
                     {
-                        if (!session.AggregatedIntelligence.Urls.Contains(url))
+                        foreach (var e in urlArr.EnumerateArray())
                         {
-                            session.AggregatedIntelligence.Urls.Add(url);
+                            var s = e.GetString();
+                            if (!string.IsNullOrWhiteSpace(s) && !target.Urls.Contains(s))
+                                target.Urls.Add(s);
                         }
                     }
 
-                    foreach (var account in intel.BankAccounts)
+                    if (root.TryGetProperty("bank_accounts", out var bankArr))
                     {
-                        if (!session.AggregatedIntelligence.BankAccounts.Any(x => x.AccountNumber == account.AccountNumber))
+                        foreach (var e in bankArr.EnumerateArray())
                         {
-                            session.AggregatedIntelligence.BankAccounts.Add(account);
+                            var acc = e.GetProperty("account_number").GetString();
+                            var ifsc = e.TryGetProperty("ifsc", out var i) ? i.GetString() : null;
+
+                            if (!string.IsNullOrWhiteSpace(acc) &&
+                                !target.BankAccounts.Any(b => b.AccountNumber == acc))
+                            {
+                                target.BankAccounts.Add(new BankAccount
+                                {
+                                    AccountNumber = acc,
+                                    Ifsc = ifsc
+                                });
+                            }
                         }
                     }
-
-                    // Return a copy of the aggregated intelligence so callers receive accumulated data
-                    return CopyExtractedIntelligence(session.AggregatedIntelligence);
                 }
-            }
-            catch
-            {
-                // swallow
             }
         }
         catch
         {
-            // On any unexpected failure, return empty intelligence
-            return new ExtractedIntelligence
-            {
-                UpiIds = new List<string>(),
-                PhoneNumbers = new List<string>(),
-                Urls = new List<string>(),
-                BankAccounts = new List<BankAccount>()
-            };
+            // swallow everything — stability > extraction
         }
 
-        // If we couldn't merge into a session, return the per-request intelligence (possibly empty)
-        return intel;
-
-    }
-
-    private static ExtractedIntelligence CopyExtractedIntelligence(ExtractedIntelligence? src)
-    {
-        if (src is null)
-            return new ExtractedIntelligence
-            {
-                UpiIds = new List<string>(),
-                PhoneNumbers = new List<string>(),
-                Urls = new List<string>(),
-                BankAccounts = new List<BankAccount>()
-            };
-
-        return new ExtractedIntelligence
-        {
-            UpiIds = src.UpiIds != null ? new List<string>(src.UpiIds) : new List<string>(),
-            PhoneNumbers = src.PhoneNumbers != null ? new List<string>(src.PhoneNumbers) : new List<string>(),
-            Urls = src.Urls != null ? new List<string>(src.Urls) : new List<string>(),
-            BankAccounts = src.BankAccounts != null ? src.BankAccounts.Select(b => new BankAccount { AccountNumber = b.AccountNumber, Ifsc = b.Ifsc }).ToList() : new List<BankAccount>()
-        };
+        return target;
     }
 }

@@ -52,7 +52,7 @@ public class HoneypotController : ControllerBase
             var extracted = await _extractor.ExtractAsync(
                 request.SessionId, request.Message, true, cancellationToken
             );
-
+            session.MergeExtractedIntelligence(extracted);
 
             // 4. Generate agent reply only if scam
             string? agentReply = null;
