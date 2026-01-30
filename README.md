@@ -33,6 +33,14 @@ There is only one public-facing endpoint for analysis.
 *   **Endpoint:** `POST /api/aegis/analyze`
 *   **Authentication:** `Authorization: Bearer <AEGIS_API_KEY>`
 
+### Intelligence Extraction
+
+The API uses a two-step process to extract intelligence (UPI IDs, phone numbers, URLs, and bank accounts) from messages:
+
+1.  **Regex Matching:** The service first uses a set of regular expressions to quickly find common patterns for each type of intelligence. This is fast and efficient for well-formatted data.
+
+2.  **LLM Fallback:** If the regex matching does not find any intelligence, the service falls back to using a Large Language Model (LLM). The LLM is given a specific prompt to extract the information from the message and return it in a structured JSON format. This allows the API to handle more complex and less structured messages.
+
 ### Sample Request
 
 The request body must be a JSON object with a `session_id` and a `message`.
@@ -44,10 +52,20 @@ curl -X POST http://localhost:5000/api/aegis/analyze \
   -H "Content-Type: application/json" \
   -d '{
     "session_id": "conv-001",
-    "message": "Congratulations! You have won a prize. Please send your bank account details to claim it.",
+    "message": "Congratulations! You have won a prize. Please pay me at myupi@abc to claim it.",
     "language_hint": "en"
   }'
 ```
+
+**Powershell Example:**
+Invoke-RestMethod -Method POST http://localhost:5000/api/aegis/analyze `
+  -Headers @{
+    "Content-Type"="application/json"
+    "Authorization"="Bearer dev-secret-key"
+  } `
+  -Body '{"session_id":"test123","message":"Send money to fraud@upi"}' |
+ConvertTo-Json -Depth 10
+
 
 ### Sample Response
 
@@ -60,7 +78,7 @@ The API will return a JSON object containing the analysis, extracted intelligenc
   "confidence": 0.95,
   "agentReply": "Sorry, I am not comfortable sharing that information.",
   "extractedIntelligence": {
-    "upiIds": [],
+    "upiIds": ["myupi@abc"],
     "phoneNumbers": [],
     "urls": [],
     "bankAccounts": []

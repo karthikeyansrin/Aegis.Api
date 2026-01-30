@@ -15,6 +15,19 @@ public class ScamDetectionService : IScamAnalysisService
         _fallback = fallback ?? throw new ArgumentNullException(nameof(fallback));
     }
 
+    private static string? ExtractJson(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+
+        var start = text.IndexOf('{');
+        var end = text.LastIndexOf('}');
+
+        if (start >= 0 && end > start)
+            return text.Substring(start, end - start + 1);
+
+        return null;
+    }
+
     public async Task<ScamAnalysisResponse> AnalyzeAsync(ScamAnalysisRequest request, CancellationToken ct = default)
     {
         // Ensure we always return a result and never throw unhandled exceptions.
@@ -37,7 +50,10 @@ public class ScamDetectionService : IScamAnalysisService
                 {
                     try
                     {
-                        using var doc = JsonDocument.Parse(result.Content);
+                        var json = ExtractJson(result.Content);
+                        if (json == null) throw new JsonException();
+
+                        using var doc = JsonDocument.Parse(json);
                         var root = doc.RootElement;
 
                         // Parse is_scam

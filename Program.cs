@@ -65,25 +65,22 @@ builder.Services.AddSingleton(new ApiKeyOptions(apiKey));
 builder.Services.AddSingleton<SimpleScamAnalysisService>();
 builder.Services.AddSingleton<IScamAnalysisService, ScamDetectionService>();
 
-// GROQ AI service configuration (HttpClientFactory + API key)
-var groqApiKey = builder.Configuration["GROQ_API_KEY"] ?? string.Empty;
-var groqBase = builder.Configuration["GROQ_BASE_URL"] ?? "https://api.groq.ai";
-
 // Register a named HttpClient for Groq and then register IGroqService via factory to pass the API key
-builder.Services.AddHttpClient("groq", client =>
+var groqBase = builder.Configuration["GROQ_BASE_URL"] ?? "https://api.groq.com/openai/";
+var groqApiKey = builder.Configuration["GROQ_API_KEY"];
+
+if (string.IsNullOrWhiteSpace(groqApiKey))
+{
+    throw new InvalidOperationException("GROQ_API_KEY is not configured");
+}
+
+builder.Services.AddHttpClient<IGroqService, GroqService>(client =>
 {
     client.BaseAddress = new Uri(groqBase);
-    client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+    client.DefaultRequestHeaders.Accept.Add(
+        new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 })
 .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler());
-
-builder.Services.AddTransient<IGroqService>(sp =>
-{
-    var factory = sp.GetRequiredService<System.IServiceProvider>()
-        .GetService<System.Net.Http.IHttpClientFactory>()!;
-    var http = factory.CreateClient("groq");
-    return new GroqService(http, groqApiKey);
-});
 
 // Conversation store and agent/extraction services
 builder.Services.AddSingleton(new ConversationStore(TimeSpan.FromMinutes(45)));

@@ -12,86 +12,84 @@ public class GroqService : IGroqService
         PropertyNameCaseInsensitive = true
     };
 
-    public GroqService(HttpClient httpClient, string apiKey)
+    public GroqService(HttpClient httpClient, IConfiguration config)
     {
-        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-        if (string.IsNullOrWhiteSpace(apiKey)) throw new ArgumentNullException(nameof(apiKey));
+        _httpClient = httpClient;
 
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        var apiKey = config["GROQ_API_KEY"];
+        if (string.IsNullOrWhiteSpace(apiKey))
+            throw new InvalidOperationException("GROQ_API_KEY is missing");
+
+        _httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", apiKey);
+
         _httpClient.Timeout = TimeSpan.FromSeconds(30);
     }
 
-    public async Task<ChatCompletionResult> CreateChatCompletionAsync(string model, IEnumerable<ChatMessage> messages, CancellationToken ct = default)
+    public async Task<ChatCompletionResult> CreateChatCompletionAsync(
+    string model,
+    IEnumerable<ChatMessage> messages,
+    CancellationToken ct = default)
     {
-        Console.WriteLine("[DEBUG] Calling Groq API...");
-
         var payload = new
         {
             model,
             messages = messages.Select(m => new { role = m.Role, content = m.Content })
         };
 
-        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-
-        // basic retry: try up to 2 times for transient errors
         for (int attempt = 1; attempt <= 2; attempt++)
         {
             try
             {
-                using var resp = await _httpClient.PostAsync("/v1/chat/completions", content, ct);
+                var content = new StringContent(
+                    JsonSerializer.Serialize(payload),
+                    Encoding.UTF8,
+                    "application/json");
+                
+                Console.WriteLine($"[DEBUG] FINAL GROQ URL = {_httpClient.BaseAddress}v1/chat/completions");
+
+                using var resp = await _httpClient.PostAsync("v1/chat/completions", content, ct);
                 var raw = await resp.Content.ReadAsStringAsync(ct);
 
                 if (!resp.IsSuccessStatusCode)
                 {
-                    // transient 5xx → retry
                     if ((int)resp.StatusCode >= 500 && attempt == 1)
                     {
-                        await Task.Delay(200 * attempt, ct);
+                        await Task.Delay(200, ct);
                         continue;
                     }
 
-                    return new ChatCompletionResult { Success = false, RawJson = raw };
+                    return new ChatCompletionResult { Success = false, Content = raw, RawJson = raw };
                 }
 
-                // try to extract a simple text response from common OpenAI-compatible shape
-                try
-                {
-                    using var doc = JsonDocument.Parse(raw);
-                    if (doc.RootElement.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0)
-                    {
-                        var first = choices[0];
-                        if (first.TryGetProperty("message", out var message) && message.TryGetProperty("content", out var contentElem))
-                        {
-                            var text = contentElem.GetString();
-                            return new ChatCompletionResult { Success = true, Content = text, RawJson = raw };
-                        }
+                using var doc = JsonDocument.Parse(raw);
+                var root = doc.RootElement;
 
-                        if (first.TryGetProperty("text", out var textElem))
+                if (root.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0)
+                {
+                    var choice = choices[0];
+                    if (choice.TryGetProperty("message", out var message) && message.TryGetProperty("content", out var contentTxt))
+                    {
+                        var text = contentTxt.GetString();
+                        if (!string.IsNullOrWhiteSpace(text))
                         {
-                            var text = textElem.GetString();
                             return new ChatCompletionResult { Success = true, Content = text, RawJson = raw };
                         }
                     }
                 }
-                catch
-                {
-                    // fall through to return raw
-                }
 
-                return new ChatCompletionResult { Success = true, RawJson = raw };
+                // fallback but still successful call
+                return new ChatCompletionResult { Success = true, Content = raw, RawJson = raw };
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                // Timeout
-                if (attempt == 1) await Task.Delay(200 * attempt, ct);
+                if (attempt == 1) await Task.Delay(200, ct);
             }
             catch (HttpRequestException) when (attempt == 1)
             {
-                await Task.Delay(200 * attempt, ct);
+                await Task.Delay(200, ct);
             }
         }
-
-        Console.WriteLine("[DEBUG] Groq API call completed...");
 
         return new ChatCompletionResult { Success = false };
     }
