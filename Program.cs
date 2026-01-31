@@ -18,7 +18,14 @@ builder.WebHost.ConfigureKestrel(options =>
 
 // Configure JSON (System.Text.Json)
 builder.Services
-    .AddControllers()
+    .AddControllers(options =>
+    {
+        options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
+    })
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.SuppressModelStateInvalidFilter = true;
+    })
     .AddJsonOptions(opts =>
     {
         opts.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
