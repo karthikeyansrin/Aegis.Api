@@ -13,9 +13,6 @@ public class ApiKeyAuthMiddleware
     private readonly RequestDelegate _next;
     private readonly ApiKeyOptions _options;
 
-    private const string AuthorizationHeader = "Authorization";
-    private const string BearerPrefix = "Bearer ";
-
     public ApiKeyAuthMiddleware(RequestDelegate next, ApiKeyOptions options)
     {
         _next = next;
@@ -26,48 +23,50 @@ public class ApiKeyAuthMiddleware
     {
         var path = context.Request.Path.Value?.ToLowerInvariant();
 
-        // ✅ Allow unauthenticated access to health & swagger
+        // Allow unauthenticated access to health & swagger
         if (path == "/health" || path.StartsWith("/swagger"))
         {
             await _next(context);
             return;
         }
 
-        if (!context.Request.Headers.TryGetValue(AuthorizationHeader, out var authHeader))
+        // 1️⃣ Try x-api-key (hackathon evaluator)
+        if (context.Request.Headers.TryGetValue("x-api-key", out var xApiKey))
         {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync(
-                JsonSerializer.Serialize(new { error = "Missing Authorization header" })
-            );
-            return;
+            if (IsValidKey(xApiKey))
+            {
+                await _next(context);
+                return;
+            }
         }
 
-        var headerValue = authHeader.ToString();
-
-        if (!headerValue.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase))
+        // 2️⃣ Try Authorization: Bearer <key> (manual testing)
+        if (context.Request.Headers.TryGetValue("Authorization", out var authHeader))
         {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync(
-                JsonSerializer.Serialize(new { error = "Invalid Authorization scheme" })
-            );
-            return;
+            var value = authHeader.ToString();
+            if (value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                var token = value.Substring("Bearer ".Length).Trim();
+                if (IsValidKey(token))
+                {
+                    await _next(context);
+                    return;
+                }
+            }
         }
 
-        var token = headerValue.Substring(BearerPrefix.Length).Trim();
+        // ❌ If neither worked → unauthorized
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsync(
+            JsonSerializer.Serialize(new { error = "Invalid or missing API key" })
+        );
+    }
 
-        if (string.IsNullOrWhiteSpace(_options.Key) ||
-            !string.Equals(token, _options.Key, StringComparison.Ordinal))
-        {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync(
-                JsonSerializer.Serialize(new { error = "Invalid API key" })
-            );
-            return;
-        }
-
-        await _next(context);
+    private bool IsValidKey(string provided)
+    {
+        return !string.IsNullOrWhiteSpace(provided)
+            && !string.IsNullOrWhiteSpace(_options.Key)
+            && string.Equals(provided.Trim(), _options.Key, StringComparison.Ordinal);
     }
 }
