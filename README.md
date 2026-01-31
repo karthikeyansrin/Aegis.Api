@@ -4,33 +4,11 @@ This is a lightweight ASP.NET Core (.NET 8) Web API for the "Agentic AEGIS for S
 
 The API provides a single endpoint for analyzing messages, maintaining conversation state, extracting intelligence, and generating agent replies.
 
-## How to Run
-
-1.  **Set Environment Variables:**
-    The API requires two secrets to be set as environment variables. For local development, you can set them in your shell.
-
-    *   `AEGIS_API_KEY`: The secret key for authenticating to this API.
-    *   `GROQ_API_KEY`: The API key for the Groq service, used for LLM-based analysis.
-
-    **PowerShell:**
-    ```powershell
-    $env:AEGIS_API_KEY = 'dev-secret-key'
-    $env:GROQ_API_KEY = 'your-groq-api-key'
-    ```
-
-2.  **Run the Application:**
-    Use the `dotnet run` command from the project directory.
-
-    ```powershell
-    dotnet run
-    ```
-    The API will be available at `http://localhost:5000` (or another port specified in the console output).
-
 ## API Endpoint
 
 There is only one public-facing endpoint for analysis.
 
-*   **Endpoint:** `POST /api/aegis/analyze`
+*   **Endpoint:** `POST https://aegisapi.up.railway.app/api/aegis/analyze`
 *   **Authentication:** `Authorization: Bearer <AEGIS_API_KEY>`
 
 ### Intelligence Extraction
@@ -47,25 +25,29 @@ The request body must be a JSON object with a `session_id` and a `message`.
 
 **cURL Example:**
 ```bash
-curl -X POST http://localhost:5000/api/aegis/analyze \
+curl -X POST https://aegisapi.up.railway.app/api/aegis/analyze \
   -H "Authorization: Bearer dev-secret-key" \
   -H "Content-Type: application/json" \
   -d '{
     "session_id": "conv-001",
-    "message": "Congratulations! You have won a prize. Please pay me at myupi@abc to claim it.",
+    "message": "Congratulations! You have won a prize. Please pay me at fraud@upi to claim it.",
     "language_hint": "en"
   }'
 ```
 
 **Powershell Example:**
-Invoke-RestMethod -Method POST http://localhost:5000/api/aegis/analyze `
+```bash
+Invoke-RestMethod -Method POST https://aegisapi.up.railway.app/api/aegis/analyze `
   -Headers @{
-    "Content-Type"="application/json"
-    "Authorization"="Bearer dev-secret-key"
+    "Content-Type" = "application/json"
+    "Authorization" = "Bearer dev-secret-key"
   } `
-  -Body '{"session_id":"test123","message":"Send money to fraud@upi"}' |
-ConvertTo-Json -Depth 10
-
+  -Body '{
+    "session_id": "test123",
+    "message": "Send money to fraud@upi"
+  }' |
+  ConvertTo-Json -Depth 10
+```
 
 ### Sample Response
 
@@ -78,7 +60,7 @@ The API will return a JSON object containing the analysis, extracted intelligenc
   "confidence": 0.95,
   "agentReply": "Sorry, I am not comfortable sharing that information.",
   "extractedIntelligence": {
-    "upiIds": ["myupi@abc"],
+    "upiIds": ["fraud@upi"],
     "phoneNumbers": [],
     "urls": [],
     "bankAccounts": []
