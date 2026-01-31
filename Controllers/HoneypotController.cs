@@ -34,8 +34,8 @@ public class HoneypotController : ControllerBase
     [HttpPost("analyze")]
     [Consumes("application/json")]
     public async Task<IActionResult> Analyze(
-        [FromBody] HoneypotRequest? request,
-        CancellationToken cancellationToken = default)
+    [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] HoneypotRequest? request,
+    CancellationToken cancellationToken = default)
     {
         // ✅ Evaluator-safe defaults (handles empty or missing body)
         var sessionId = string.IsNullOrWhiteSpace(request?.SessionId)
