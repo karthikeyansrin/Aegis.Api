@@ -1,4 +1,4 @@
-using System.Net;
+using System.Text.Json;
 
 namespace Aegis.Api.Middleware;
 
@@ -12,6 +12,7 @@ public class ApiKeyAuthMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ApiKeyOptions _options;
+
     private const string AuthorizationHeader = "Authorization";
     private const string BearerPrefix = "Bearer ";
 
@@ -23,31 +24,47 @@ public class ApiKeyAuthMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var expectedKey = Environment.GetEnvironmentVariable("HONEYPOT_API_KEY");
+        var path = context.Request.Path.Value?.ToLowerInvariant();
 
-        if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader))
+        // ✅ Allow unauthenticated access to health & swagger
+        if (path == "/health" || path.StartsWith("/swagger"))
+        {
+            await _next(context);
+            return;
+        }
+
+        if (!context.Request.Headers.TryGetValue(AuthorizationHeader, out var authHeader))
         {
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            await context.Response.WriteAsJsonAsync(new { error = "Missing Authorization header" });
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsync(
+                JsonSerializer.Serialize(new { error = "Missing Authorization header" })
+            );
             return;
         }
 
         var headerValue = authHeader.ToString();
 
-        if (!headerValue.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        if (!headerValue.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase))
         {
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            await context.Response.WriteAsJsonAsync(new { error = "Invalid Authorization scheme" });
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsync(
+                JsonSerializer.Serialize(new { error = "Invalid Authorization scheme" })
+            );
             return;
         }
 
-        var token = headerValue.Substring("Bearer ".Length).Trim();
+        var token = headerValue.Substring(BearerPrefix.Length).Trim();
 
-        if (string.IsNullOrWhiteSpace(expectedKey) ||
-            !string.Equals(token, expectedKey.Trim(), StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(_options.Key) ||
+            !string.Equals(token, _options.Key, StringComparison.Ordinal))
         {
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            await context.Response.WriteAsJsonAsync(new { error = "Invalid API key" });
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsync(
+                JsonSerializer.Serialize(new { error = "Invalid API key" })
+            );
             return;
         }
 
