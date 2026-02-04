@@ -35,6 +35,7 @@ namespace Aegis.Api.Models
         /// Access/modification is protected by an internal lock to ensure consistency.
         /// </summary>
         public ExtractedIntelligence AggregatedIntelligence { get; private set; } = new ExtractedIntelligence();
+        public bool FinalResultSent { get; set; } = false;
 
         public ConversationSession(string sessionId)
         {

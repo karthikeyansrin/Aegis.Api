@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json;
 using Aegis.Api.Models;
 using Aegis.Api.Services;
@@ -14,17 +15,20 @@ public class HoneypotController : ControllerBase
     private readonly ConversationStore _store;
     private readonly IntelligenceExtractionService _extractor;
     private readonly HoneypotAgentService _agent;
+    private readonly GuviCallbackService _guviCallback;
 
     public HoneypotController(
         IScamAnalysisService detector,
         ConversationStore store,
         IntelligenceExtractionService extractor,
-        HoneypotAgentService agent)
+        HoneypotAgentService agent,
+        GuviCallbackService guviCallback)
     {
         _detector = detector;
         _store = store;
         _extractor = extractor;
         _agent = agent;
+        _guviCallback = guviCallback;
     }
 
     /// <summary>
@@ -101,6 +105,33 @@ public class HoneypotController : ControllerBase
             );
 
             session.MergeExtractedIntelligence(extracted);
+
+            bool hasExtractedIntel =
+                extracted.UpiIds.Any() ||
+                extracted.PhoneNumbers.Any() ||
+                extracted.Urls.Any() ||
+                extracted.BankAccounts.Any();
+
+            if (analysis.IsScam && hasExtractedIntel && !session.FinalResultSent)
+            {
+                session.FinalResultSent = true;
+
+                try
+                {
+                    await _guviCallback.SendFinalResultAsync(
+                        sessionId: sessionId,
+                        scamDetected: true,
+                        totalMessagesExchanged: session.History.Count,
+                        intelligence: session.AggregatedIntelligence,
+                        agentNotes: "Scammer used urgency tactics and payment redirection",
+                        cancellationToken
+                    );
+                }
+                catch
+                {
+                    // Best-effort callback; ignore failures.
+                }
+            }
 
             string? agentReply = null;
 

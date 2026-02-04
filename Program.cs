@@ -93,6 +93,7 @@ builder.Services.AddHttpClient<IGroqService, GroqService>(client =>
 builder.Services.AddSingleton(new ConversationStore(TimeSpan.FromMinutes(45)));
 builder.Services.AddSingleton<HoneypotAgentService>();
 builder.Services.AddSingleton<IntelligenceExtractionService>();
+builder.Services.AddHttpClient<GuviCallbackService>();
 
 var app = builder.Build();
 
