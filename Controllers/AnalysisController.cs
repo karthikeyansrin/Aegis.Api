@@ -7,5 +7,6 @@ namespace Aegis.Api.Controllers
     {
         // Intentionally empty. The public AnalysisController endpoint was disabled to present
         // a single public API (`/api/aegis/analyze`) for automated evaluators.
+        // Checking auto deploy
     }
 }
