@@ -97,12 +97,20 @@ public class HoneypotAgentService
             reply = TruncateToTwoSentences(reply);
 
             // Sanitize any accidental personal info
-            reply = SanitizePersonalInfo(reply);
+            var sanitized = SanitizePersonalInfo(reply);
 
-            // Post-check: ensure reply does not request sensitive info or reveal identity
-            if (IsUnsafeReply(reply))
+            // If sanitization altered the reply, fall back to safe generic response
+            if (!string.Equals(sanitized, reply, StringComparison.Ordinal))
             {
-                reply = "Sorry, I don't feel comfortable with that request.";
+                reply = "That doesn’t sound right — can you explain what this is about?";
+            }
+            else if (IsUnsafeReply(sanitized))
+            {
+                reply = "I don’t feel comfortable with that request.";
+            }
+            else
+            {
+                reply = sanitized;
             }
 
             // Ensure reply is short (limit characters as a safeguard)
