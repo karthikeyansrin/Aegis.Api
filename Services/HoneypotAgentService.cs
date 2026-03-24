@@ -33,9 +33,6 @@ public class HoneypotAgentService
 
             var session = _store.GetOrCreateSession(sessionId);
 
-            // Append the incoming user message to history
-            session.AppendMessage("user", incomingMessage);
-
             // Build context: last N messages (user/agent) to keep prompt short
             const int maxHistory = 8;
             var historyArray = session.History.ToArray();

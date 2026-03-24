@@ -30,7 +30,7 @@ public class ApiKeyAuthMiddleware
             return;
         }
 
-        // 1️⃣ Try x-api-key (hackathon evaluator)
+        // 1️⃣ Try x-api-key
         if (context.Request.Headers.TryGetValue("x-api-key", out var xApiKey))
         {
             if (IsValidKey(xApiKey))
@@ -40,7 +40,7 @@ public class ApiKeyAuthMiddleware
             }
         }
 
-        // 2️⃣ Try Authorization: Bearer <key> (manual testing)
+        // 2️⃣ Try Authorization: Bearer <key>
         if (context.Request.Headers.TryGetValue("Authorization", out var authHeader))
         {
             var value = authHeader.ToString();
