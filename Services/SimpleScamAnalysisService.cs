@@ -4,7 +4,7 @@ namespace Aegis.Api.Services;
 
 public class SimpleScamAnalysisService : IScamAnalysisService
 {
-    // Very small, deterministic rule set to make outputs stable and evaluator-friendly.
+    // Very small, deterministic rule set to keep outputs stable.
     private static readonly string[] ScamKeywords = new[]
     {
         "wire transfer",

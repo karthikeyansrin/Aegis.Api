@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Text.Json;
 using Aegis.Api.Models;
 using Aegis.Api.Services;
@@ -15,25 +14,19 @@ public class HoneypotController : ControllerBase
     private readonly ConversationStore _store;
     private readonly IntelligenceExtractionService _extractor;
     private readonly HoneypotAgentService _agent;
-    private readonly GuviCallbackService _guviCallback;
 
     public HoneypotController(
         IScamAnalysisService detector,
         ConversationStore store,
         IntelligenceExtractionService extractor,
-        HoneypotAgentService agent,
-        GuviCallbackService guviCallback)
+        HoneypotAgentService agent)
     {
         _detector = detector;
         _store = store;
         _extractor = extractor;
         _agent = agent;
-        _guviCallback = guviCallback;
     }
 
-    /// <summary>
-    /// Evaluator + production compatible honeypot endpoint
-    /// </summary>
     [HttpPost("analyze")]
     [Consumes("application/json")]
     public async Task<IActionResult> Analyze(
@@ -42,57 +35,65 @@ public class HoneypotController : ControllerBase
     {
         try
         {
-            // -------------------------------
-            // 1. Normalize input (adapter)
-            // -------------------------------
             string sessionId = "default-session";
             string messageText = string.Empty;
 
-            // Evaluator format: sessionId
             if (body.TryGetProperty("sessionId", out var sidElem) &&
                 sidElem.ValueKind == JsonValueKind.String)
             {
                 sessionId = sidElem.GetString() ?? sessionId;
             }
+            else if (body.TryGetProperty("session_id", out var sessionIdElem) &&
+                     sessionIdElem.ValueKind == JsonValueKind.String)
+            {
+                sessionId = sessionIdElem.GetString() ?? sessionId;
+            }
 
-            // Evaluator format: message.text
             if (body.TryGetProperty("message", out var msgElem))
             {
                 if (msgElem.ValueKind == JsonValueKind.Object &&
                     msgElem.TryGetProperty("text", out var textElem))
                 {
-                    messageText = textElem.GetString() ?? "";
+                    messageText = textElem.GetString() ?? string.Empty;
                 }
-                // Original format: message as string
                 else if (msgElem.ValueKind == JsonValueKind.String)
                 {
-                    messageText = msgElem.GetString() ?? "";
+                    messageText = msgElem.GetString() ?? string.Empty;
                 }
             }
 
-            // Absolute fallback (probe / empty request)
+            if (string.IsNullOrWhiteSpace(messageText) &&
+                body.TryGetProperty("text", out var rawTextElem) &&
+                rawTextElem.ValueKind == JsonValueKind.String)
+            {
+                messageText = rawTextElem.GetString() ?? string.Empty;
+            }
+
             if (string.IsNullOrWhiteSpace(messageText))
             {
                 return Ok(new
                 {
-                    status = "success",
-                    reply = "Could you clarify what this message is about?"
+                    isScam = false,
+                    scamType = (string?)null,
+                    confidence = 0.0,
+                    agentReply = "Could you clarify what this message is about?",
+                    extractedIntelligence = new
+                    {
+                        upiIds = Array.Empty<string>(),
+                        phoneNumbers = Array.Empty<string>(),
+                        urls = Array.Empty<string>(),
+                        bankAccounts = Array.Empty<string>()
+                    }
                 });
             }
 
-            // -------------------------------
-            // 2. Internal Aegis request
-            // -------------------------------
             var analysisRequest = new ScamAnalysisRequest
             {
                 Content = messageText,
-                Source = "evaluator"
+                Source = "api"
             };
 
-            var analysis = await _detector.AnalyzeAsync(
-                analysisRequest,
-                cancellationToken
-            );
+            var analysis = await _detector.AnalyzeAsync(analysisRequest, cancellationToken);
 
             var session = _store.GetOrCreateSession(sessionId);
             session.AppendMessage("user", messageText);
@@ -101,68 +102,79 @@ public class HoneypotController : ControllerBase
                 sessionId,
                 messageText,
                 true,
-                cancellationToken
-            );
+                cancellationToken);
 
             session.MergeExtractedIntelligence(extracted);
 
-            bool hasExtractedIntel =
-                extracted.UpiIds.Any() ||
-                extracted.PhoneNumbers.Any() ||
-                extracted.Urls.Any() ||
-                extracted.BankAccounts.Any();
-
-            if (analysis.IsScam && hasExtractedIntel && !session.FinalResultSent)
+            var confidence = 0.0;
+            if (analysis.Evidence != null &&
+                analysis.Evidence.TryGetValue("confidence", out var confidenceValue) &&
+                confidenceValue is not null)
             {
-                session.FinalResultSent = true;
-
-                try
+                switch (confidenceValue)
                 {
-                    await _guviCallback.SendFinalResultAsync(
-                        sessionId: sessionId,
-                        scamDetected: true,
-                        totalMessagesExchanged: session.History.Count,
-                        intelligence: session.AggregatedIntelligence,
-                        agentNotes: "Scammer used urgency tactics and payment redirection",
-                        cancellationToken
-                    );
-                }
-                catch
-                {
-                    // Best-effort callback; ignore failures.
+                    case double d:
+                        confidence = d;
+                        break;
+                    case float f:
+                        confidence = f;
+                        break;
+                    case decimal m:
+                        confidence = (double)m;
+                        break;
+                    case JsonElement jsonElem when jsonElem.ValueKind == JsonValueKind.Number && jsonElem.TryGetDouble(out var cd):
+                        confidence = cd;
+                        break;
+                    default:
+                        if (double.TryParse(confidenceValue.ToString(), out var parsed))
+                        {
+                            confidence = parsed;
+                        }
+                        break;
                 }
             }
 
-            string? agentReply = null;
+            if (double.IsNaN(confidence) || confidence < 0) confidence = 0.0;
+            if (confidence > 1) confidence = 1.0;
 
-            if (analysis.IsScam)
-            {
-                agentReply = await _agent.GenerateAgentReplyAsync(
-                    sessionId,
-                    messageText,
-                    analysis.IsScam,
-                    cancellationToken
-                );
-            }
+            var scamType = analysis.Summary == "not_scam" ? null : analysis.Summary;
 
-            // -------------------------------
-            // 3. Evaluator response format
-            // -------------------------------
+            var agentReply = await _agent.GenerateAgentReplyAsync(
+                sessionId,
+                messageText,
+                analysis.IsScam,
+                cancellationToken) ?? "Can you explain what this is regarding?";
+
             return Ok(new
             {
-                status = "success",
-                reply = string.IsNullOrWhiteSpace(agentReply)
-                    ? "Why is my account being suspended?"
-                    : agentReply
+                isScam = analysis.IsScam,
+                scamType,
+                confidence,
+                agentReply,
+                extractedIntelligence = new
+                {
+                    upiIds = session.AggregatedIntelligence.UpiIds,
+                    phoneNumbers = session.AggregatedIntelligence.PhoneNumbers,
+                    urls = session.AggregatedIntelligence.Urls,
+                    bankAccounts = session.AggregatedIntelligence.BankAccounts.Select(b => b.AccountNumber).ToList()
+                }
             });
         }
         catch
         {
-            // Never fail evaluator
             return Ok(new
             {
-                status = "success",
-                reply = "Can you explain what this is regarding?"
+                isScam = false,
+                scamType = (string?)null,
+                confidence = 0.0,
+                agentReply = "Can you explain what this is regarding?",
+                extractedIntelligence = new
+                {
+                    upiIds = Array.Empty<string>(),
+                    phoneNumbers = Array.Empty<string>(),
+                    urls = Array.Empty<string>(),
+                    bankAccounts = Array.Empty<string>()
+                }
             });
         }
     }

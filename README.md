@@ -1,6 +1,6 @@
 # Aegis API
 
-This is a lightweight ASP.NET Core (.NET 8) Web API for the "Agentic AEGIS for Scam Detection & Intelligence Extraction" hackathon project.
+This is a lightweight ASP.NET Core (.NET 8) Web API for an Agentic AEGIS scam detection and intelligence extraction service.
 
 The API provides a single endpoint for analyzing messages, maintaining conversation state, extracting intelligence, and generating agent replies.
 
