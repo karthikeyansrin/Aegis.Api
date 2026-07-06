@@ -8,6 +8,9 @@ using Aegis.Application.Interfaces;
 using Aegis.Application.Services;
 using Aegis.Infrastructure.Persistence;
 using Aegis.Infrastructure.AI;
+using Aegis.Application.Extensions;
+using Aegis.Infrastructure.Extensions;
+using Aegis.Api.Extensions;
 using System.Diagnostics;
 using Microsoft.OpenApi.Models;
 
@@ -69,35 +72,11 @@ builder.Services.AddSwaggerGen(c =>
 
 // Configuration: read environment variables (e.g. AEGIS_API_KEY)
 builder.Configuration.AddEnvironmentVariables();
-var apiKey = builder.Configuration["AEGIS_API_KEY"] ?? "dev-secret-key";
-builder.Services.AddSingleton(new ApiKeyOptions(apiKey));
 
-// Register application services
-// Keep SimpleScamAnalysisService as a concrete fallback and register ScamDetectionService as the primary IScamAnalysisService
-builder.Services.AddSingleton<SimpleScamAnalysisService>();
-builder.Services.AddSingleton<IScamAnalysisService, ScamDetectionService>();
-
-// Register a named HttpClient for Groq and then register IGroqService via factory to pass the API key
-var groqBase = builder.Configuration["GROQ_BASE_URL"] ?? "https://api.groq.com/openai/";
-var groqApiKey = builder.Configuration["GROQ_API_KEY"];
-
-if (string.IsNullOrWhiteSpace(groqApiKey))
-{
-    throw new InvalidOperationException("GROQ_API_KEY is not configured");
-}
-
-builder.Services.AddHttpClient<IGroqService, GroqService>(client =>
-{
-    client.BaseAddress = new Uri(groqBase);
-    client.DefaultRequestHeaders.Accept.Add(
-        new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
-})
-.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler());
-
-// Conversation store and agent/extraction services
-builder.Services.AddSingleton(new ConversationStore(TimeSpan.FromMinutes(45)));
-builder.Services.AddSingleton<HoneypotAgentService>();
-builder.Services.AddSingleton<IntelligenceExtractionService>();
+// Delegate service registrations to extension methods
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddSecurity(builder.Configuration);
 
 var app = builder.Build();
 
