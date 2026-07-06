@@ -7,6 +7,8 @@ using Aegis.Application.Interfaces;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Options;
+using Aegis.Shared.Options;
 
 namespace Aegis.Infrastructure.AI;
 
@@ -18,11 +20,11 @@ public class GroqService : IGroqService
         PropertyNameCaseInsensitive = true
     };
 
-    public GroqService(HttpClient httpClient, IConfiguration config)
+    public GroqService(HttpClient httpClient, IOptions<OpenAIOptions> options)
     {
         _httpClient = httpClient;
 
-        var apiKey = config["GROQ_API_KEY"];
+        var apiKey = options.Value.ApiKey;
         if (string.IsNullOrWhiteSpace(apiKey))
             throw new InvalidOperationException("GROQ_API_KEY is missing");
 

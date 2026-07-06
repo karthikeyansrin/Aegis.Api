@@ -5,24 +5,21 @@ using Aegis.Application.DTOs;
 using Aegis.Application.Services;
 using Aegis.Application.Interfaces;
 using System.Text.Json;
+using Microsoft.Extensions.Options;
+using Aegis.Shared.Options;
+using Microsoft.AspNetCore.Http;
 
 namespace Aegis.Api.Middleware;
-
-public class ApiKeyOptions
-{
-    public string Key { get; }
-    public ApiKeyOptions(string key) => Key = key;
-}
 
 public class ApiKeyAuthMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly ApiKeyOptions _options;
+    private readonly SecurityOptions _options;
 
-    public ApiKeyAuthMiddleware(RequestDelegate next, ApiKeyOptions options)
+    public ApiKeyAuthMiddleware(RequestDelegate next, IOptions<SecurityOptions> options)
     {
         _next = next;
-        _options = options;
+        _options = options.Value;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -30,7 +27,7 @@ public class ApiKeyAuthMiddleware
         var path = context.Request.Path.Value?.ToLowerInvariant();
 
         // Allow unauthenticated access to health & swagger
-        if (path == "/health" || path.StartsWith("/swagger"))
+        if (path == "/health" || (path != null && path.StartsWith("/swagger")))
         {
             await _next(context);
             return;
@@ -72,7 +69,7 @@ public class ApiKeyAuthMiddleware
     private bool IsValidKey(string provided)
     {
         return !string.IsNullOrWhiteSpace(provided)
-            && !string.IsNullOrWhiteSpace(_options.Key)
-            && string.Equals(provided.Trim(), _options.Key, StringComparison.Ordinal);
+            && !string.IsNullOrWhiteSpace(_options.ApiKey)
+            && string.Equals(provided.Trim(), _options.ApiKey, StringComparison.Ordinal);
     }
 }
