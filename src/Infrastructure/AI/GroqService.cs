@@ -9,20 +9,23 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Aegis.Shared.Options;
+using Microsoft.Extensions.Logging;
 
 namespace Aegis.Infrastructure.AI;
 
 public class GroqService : IGroqService
 {
     private readonly HttpClient _httpClient;
+    private readonly ILogger<GroqService> _logger;
     private readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
     {
         PropertyNameCaseInsensitive = true
     };
 
-    public GroqService(HttpClient httpClient, IOptions<OpenAIOptions> options)
+    public GroqService(HttpClient httpClient, IOptions<OpenAIOptions> options, ILogger<GroqService> logger)
     {
         _httpClient = httpClient;
+        _logger = logger;
 
         var apiKey = options.Value.ApiKey;
         if (string.IsNullOrWhiteSpace(apiKey))
@@ -54,7 +57,7 @@ public class GroqService : IGroqService
                     Encoding.UTF8,
                     "application/json");
                 
-                Console.WriteLine($"[DEBUG] FINAL GROQ URL = {_httpClient.BaseAddress}v1/chat/completions");
+                _logger.LogInformation($"[DEBUG] FINAL GROQ URL = {_httpClient.BaseAddress}v1/chat/completions");
 
                 using var resp = await _httpClient.PostAsync("v1/chat/completions", content, ct);
                 var raw = await resp.Content.ReadAsStringAsync(ct);

@@ -13,8 +13,14 @@ using Aegis.Infrastructure.Extensions;
 using Aegis.Api.Extensions;
 using System.Diagnostics;
 using Microsoft.OpenApi.Models;
+using Serilog;
+using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, loggerConfiguration) => loggerConfiguration
+    .ReadFrom.Configuration(context.Configuration)
+    .WriteTo.Console());
 
 // Configure Kestrel timeouts and limits (reasonable defaults)
 builder.WebHost.ConfigureKestrel(options =>
@@ -95,16 +101,17 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.Use(async (context, next) =>
 {
     var sw = Stopwatch.StartNew();
+    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
     try
     {
         // Log minimal request info to Console for now (can integrate ILogger later)
-        Console.WriteLine($"[Request] {context.Request.Method} {context.Request.Path}");
+        logger.LogInformation($"[Request] {context.Request.Method} {context.Request.Path}");
         await next();
     }
     finally
     {
         sw.Stop();
-        Console.WriteLine($"[Request] {context.Request.Method} {context.Request.Path} completed {context.Response.StatusCode} in {sw.ElapsedMilliseconds}ms");
+        logger.LogInformation($"[Request] {context.Request.Method} {context.Request.Path} completed {context.Response.StatusCode} in {sw.ElapsedMilliseconds}ms");
     }
 });
 
