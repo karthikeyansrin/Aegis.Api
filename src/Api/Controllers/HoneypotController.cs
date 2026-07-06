@@ -1,6 +1,10 @@
 using System.Text.Json;
-using Aegis.Api.Models;
-using Aegis.Api.Services;
+using Aegis.Application.DTOs;
+using Aegis.Domain.Entities;
+using Aegis.Application.Interfaces;
+using Aegis.Application.Services;
+using Aegis.Infrastructure.Persistence;
+using Aegis.Infrastructure.AI;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Aegis.Api.Controllers;

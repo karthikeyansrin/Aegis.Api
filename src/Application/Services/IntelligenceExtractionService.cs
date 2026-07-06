@@ -1,8 +1,13 @@
+using Aegis.Infrastructure.AI;
+using Aegis.Infrastructure.Persistence;
+using Aegis.Application.Services;
+using Aegis.Application.Interfaces;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Aegis.Api.Models;
+using Aegis.Application.DTOs;
+using Aegis.Domain.Entities;
 
-namespace Aegis.Api.Services;
+namespace Aegis.Application.Services;
 
 public sealed class IntelligenceExtractionService
 {

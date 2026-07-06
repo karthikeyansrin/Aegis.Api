@@ -1,3 +1,9 @@
+using Aegis.Infrastructure.AI;
+using Aegis.Infrastructure.Persistence;
+using Aegis.Domain.Entities;
+using Aegis.Application.DTOs;
+using Aegis.Application.Services;
+using Aegis.Application.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;

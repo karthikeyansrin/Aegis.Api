@@ -1,8 +1,14 @@
+using Aegis.Infrastructure.AI;
+using Aegis.Infrastructure.Persistence;
+using Aegis.Domain.Entities;
+using Aegis.Application.DTOs;
+using Aegis.Application.Services;
+using Aegis.Application.Interfaces;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
-namespace Aegis.Api.Services;
+namespace Aegis.Infrastructure.AI;
 
 public class GroqService : IGroqService
 {

@@ -1,8 +1,14 @@
+using Aegis.Infrastructure.AI;
+using Aegis.Infrastructure.Persistence;
+using Aegis.Domain.Entities;
+using Aegis.Application.DTOs;
+using Aegis.Application.Services;
+using Aegis.Application.Interfaces;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Aegis.Api.Services;
+namespace Aegis.Application.Interfaces;
 
 public record ChatMessage(string Role, string Content);
 
