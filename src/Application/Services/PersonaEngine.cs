@@ -13,10 +13,10 @@ namespace Aegis.Application.Services;
 public class PersonaEngine : IPersonaEngine
 {
     private readonly ILLMProvider _groq;
-    private readonly IConversationStore _store;
+    private readonly IConversationRepository _store;
     private readonly string _model = "llama-3.1-8b-instant";
 
-    public PersonaEngine(ILLMProvider groq, IConversationStore store)
+    public PersonaEngine(ILLMProvider groq, IConversationRepository store)
     {
         _groq = groq ?? throw new ArgumentNullException(nameof(groq));
         _store = store ?? throw new ArgumentNullException(nameof(store));
@@ -60,7 +60,7 @@ public class PersonaEngine : IPersonaEngine
 
             if (string.IsNullOrWhiteSpace(sessionId)) sessionId = Guid.NewGuid().ToString();
 
-            var session = _store.GetOrCreateSession(sessionId);
+            var session = await _store.GetOrCreateSessionAsync(sessionId, ct);
 
             var persona = GetDefaultPersona();
 

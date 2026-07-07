@@ -9,12 +9,12 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        services.AddSingleton<SimpleThreatEngine>();
-        services.AddSingleton<IThreatEngine, ThreatEngine>();
-        services.AddSingleton<IPersonaEngine, PersonaEngine>();
-        services.AddSingleton<IIntelligenceEngine, IntelligenceEngine>();
+        services.AddScoped<SimpleThreatEngine>();
+        services.AddScoped<IThreatEngine, ThreatEngine>();
+        services.AddScoped<IPersonaEngine, PersonaEngine>();
+        services.AddScoped<IIntelligenceEngine, IntelligenceEngine>();
         
-        services.AddSingleton<IConversationEngine, ConversationEngine>();
+        services.AddScoped<IConversationEngine, ConversationEngine>();
         return services;
     }
 }

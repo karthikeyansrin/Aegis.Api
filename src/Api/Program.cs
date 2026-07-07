@@ -138,8 +138,6 @@ app.UseMiddleware<ApiKeyAuthMiddleware>();
 
 app.MapControllers();
 
-// Ensure graceful shutdown disposes store
-var store = app.Services.GetService<Aegis.Application.Interfaces.IConversationStore>() as IDisposable;
-app.Lifetime.ApplicationStopping.Register(() => store?.Dispose());
+
 
 app.Run();

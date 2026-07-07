@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Aegis.Application.Interfaces;
 using Aegis.Infrastructure.AI;
 using Aegis.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Aegis.Shared.Options;
 
 namespace Aegis.Infrastructure.Extensions;
@@ -51,6 +52,10 @@ public static class DependencyInjection
             return new ConversationStore(TimeSpan.FromMinutes(options.ExpiryMinutes));
         });
 
+                services.AddDbContext<AegisDbContext>(options =>
+            options.UseNpgsql(configuration.GetSection(DatabaseOptions.SectionName)["ConnectionString"]));
+
+        services.AddScoped<IConversationRepository, ConversationRepository>();
         return services;
     }
 }

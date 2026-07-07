@@ -16,13 +16,13 @@ public interface IConversationEngine
 public class ConversationEngine : IConversationEngine
 {
     private readonly IThreatEngine _detector;
-    private readonly IConversationStore _store;
+    private readonly IConversationRepository _store;
     private readonly IIntelligenceEngine _extractor;
     private readonly IPersonaEngine _agent;
 
     public ConversationEngine(
         IThreatEngine detector,
-        IConversationStore store,
+        IConversationRepository store,
         IIntelligenceEngine extractor,
         IPersonaEngine agent)
     {
@@ -36,6 +36,7 @@ public class ConversationEngine : IConversationEngine
     {
         if (string.IsNullOrWhiteSpace(messageText))
         {
+            await _store.SaveChangesAsync(cancellationToken);
             return new ConversationResult
             {
                 IsScam = false,
@@ -56,7 +57,7 @@ public class ConversationEngine : IConversationEngine
 
             var analysis = await _detector.AnalyzeAsync(analysisRequest, cancellationToken);
 
-            var session = _store.GetOrCreateSession(sessionId);
+            var session = await _store.GetOrCreateSessionAsync(sessionId, cancellationToken);
             session.AppendMessage("user", messageText);
 
             var extracted = await _extractor.ExtractAsync(
@@ -73,6 +74,7 @@ public class ConversationEngine : IConversationEngine
                 analysis.IsThreat,
                 cancellationToken) ?? "Can you explain what this is regarding?";
 
+            await _store.SaveChangesAsync(cancellationToken);
             return new ConversationResult
             {
                 IsScam = analysis.IsThreat,
@@ -90,6 +92,7 @@ public class ConversationEngine : IConversationEngine
         }
         catch
         {
+            await _store.SaveChangesAsync(cancellationToken);
             return new ConversationResult
             {
                 IsScam = false,

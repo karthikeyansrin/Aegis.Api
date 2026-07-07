@@ -1,14 +1,8 @@
-using Aegis.Infrastructure.AI;
-using Aegis.Infrastructure.Persistence;
-using Aegis.Domain.Entities;
-using Aegis.Application.DTOs;
-using Aegis.Application.Services;
-using Aegis.Application.Interfaces;
 using System;
-using System.Collections.Generic;
 using System.Text.Json.Serialization;
+using Aegis.Domain.Entities;
 
-namespace Aegis.Api.Models
+namespace Aegis.Application.DTOs
 {
     public sealed class HoneypotRequest
     {
@@ -24,10 +18,6 @@ namespace Aegis.Api.Models
         [JsonPropertyName("timestamp")]
         public DateTimeOffset? Timestamp { get; init; }
 
-        /// <summary>
-        /// Lightweight validation to ensure required fields are present and valid.
-        /// Returns (true, null) when valid; otherwise (false, errorMessage).
-        /// </summary>
         public (bool IsValid, string? Error) Validate()
         {
             if (string.IsNullOrWhiteSpace(SessionId))
@@ -49,43 +39,19 @@ namespace Aegis.Api.Models
         public string? ScamType { get; init; }
 
         [JsonPropertyName("confidence")]
-    public double Confidence { get; init; } = 0.0;
+        public double Confidence { get; init; } = 0.0;
 
         [JsonPropertyName("agent_reply")]
-    public string AgentReply { get; init; } = string.Empty;
+        public string AgentReply { get; init; } = string.Empty;
 
         [JsonPropertyName("extracted_intelligence")]
-    public ExtractedIntelligence ExtractedIntelligence { get; set; } = null!;
+        public ExtractedIntelligence ExtractedIntelligence { get; set; } = null!;
 
         [JsonPropertyName("conversation_state")]
         public string? ConversationState { get; init; }
 
         [JsonPropertyName("safety_flags")]
         public SafetyFlags? SafetyFlags { get; init; }
-    }
-
-    public sealed class ExtractedIntelligence
-    {
-    [JsonPropertyName("upi_ids")]
-    public List<string> UpiIds { get; } = new List<string>();
-
-    [JsonPropertyName("phone_numbers")]
-    public List<string> PhoneNumbers { get; } = new List<string>();
-
-    [JsonPropertyName("urls")]
-    public List<string> Urls { get; } = new List<string>();
-
-    [JsonPropertyName("bank_accounts")]
-    public List<BankAccount> BankAccounts { get; } = new List<BankAccount>();
-    }
-
-    public sealed class BankAccount
-    {
-        [JsonPropertyName("account_number")]
-        public required string AccountNumber { get; init; }
-
-        [JsonPropertyName("ifsc")]
-        public string? Ifsc { get; init; }
     }
 
     public sealed class SafetyFlags

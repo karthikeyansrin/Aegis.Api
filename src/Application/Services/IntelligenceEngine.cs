@@ -12,7 +12,7 @@ namespace Aegis.Application.Services;
 public sealed class IntelligenceEngine : IIntelligenceEngine
 {
     private readonly ILLMProvider _groq;
-    private readonly IConversationStore _store;
+    private readonly IConversationRepository _store;
 
     private static readonly Regex UpiRegex =
     new("\b[a-zA-Z0-9._-]{2,}@[a-zA-Z]{2,15}\b",
@@ -31,7 +31,7 @@ public sealed class IntelligenceEngine : IIntelligenceEngine
     private static readonly Regex AccountNumberRegex =
         new("(?<!\d)\d{11,18}(?!\d)", RegexOptions.Compiled);
     
-    public IntelligenceEngine(ILLMProvider groq, IConversationStore store)
+    public IntelligenceEngine(ILLMProvider groq, IConversationRepository store)
     {
         _groq = groq;
         _store = store;
@@ -43,7 +43,7 @@ public sealed class IntelligenceEngine : IIntelligenceEngine
         bool useLLMFallback = true,
         CancellationToken ct = default)
     {
-        var session = _store.GetOrCreateSession(sessionId);
+        var session = await _store.GetOrCreateSessionAsync(sessionId, ct);
         var target = session.AggregatedIntelligence;
 
         if (string.IsNullOrWhiteSpace(message))
