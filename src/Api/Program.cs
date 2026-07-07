@@ -80,7 +80,7 @@ builder.Services.AddSwaggerGen(c =>
 builder.Configuration.AddEnvironmentVariables();
 
 // Delegate service registrations to extension methods
-builder.Services.AddApplication();
+builder.Services.AddApplication(builder.Configuration);
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddSecurity(builder.Configuration);
 

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Aegis.Domain.Enums;
 
 namespace Aegis.Domain.Entities;
 
@@ -11,10 +12,18 @@ public class ConversationSession
     public DateTime LastUpdatedUtc { get; set; }
 
     public List<MessageEntry> History { get; set; } = new();
-
     public ExtractedIntelligence AggregatedIntelligence { get; set; } = new();
 
-    public ConversationSession() { }
+    /// <summary>
+    /// All ThreatIndicators extracted across the lifetime of this session.
+    /// Each extracted entity (UPI ID, phone, URL, bank account) lives here as a typed indicator.
+    /// </summary>
+    public List<ThreatIndicator> ThreatIndicators { get; set; } = new();
+
+    /// <summary>
+    /// The current stage of the conversation. Used by PersonaEngine to alter engagement tactics.
+    /// </summary>
+    public ConversationStage CurrentStage { get; set; } = ConversationStage.Clarify;
 
     public ConversationSession(string sessionId)
     {
@@ -79,7 +88,30 @@ public class ConversationSession
         }
         LastUpdatedUtc = DateTime.UtcNow;
     }
+
+    /// <summary>
+    /// Merges new ThreatIndicators into the session, deduplicating by Type + Value.
+    /// </summary>
+    public void MergeThreatIndicators(IEnumerable<ThreatIndicator> indicators)
+    {
+        if (indicators is null) return;
+
+        var existingKeys = new HashSet<string>(
+            ThreatIndicators.Select(i => $"{i.Type}:{i.Value}"),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var indicator in indicators)
+        {
+            if (string.IsNullOrWhiteSpace(indicator.Value)) continue;
+            var key = $"{indicator.Type}:{indicator.Value}";
+            if (existingKeys.Add(key))
+                ThreatIndicators.Add(indicator);
+        }
+
+        LastUpdatedUtc = DateTime.UtcNow;
+    }
 }
+
 
 public class MessageEntry
 {

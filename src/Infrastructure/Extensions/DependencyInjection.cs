@@ -46,12 +46,6 @@ public static class DependencyInjection
         services.AddSingleton<ILLMProvider>(sp =>
             sp.GetRequiredService<ProviderFactory>().GetDefault());
 
-        services.AddSingleton<IConversationStore, ConversationStore>(sp =>
-        {
-            var options = sp.GetRequiredService<IOptions<DatabaseOptions>>().Value;
-            return new ConversationStore(TimeSpan.FromMinutes(options.ExpiryMinutes));
-        });
-
                 services.AddDbContext<AegisDbContext>(options =>
             options.UseNpgsql(configuration.GetSection(DatabaseOptions.SectionName)["ConnectionString"]));
 

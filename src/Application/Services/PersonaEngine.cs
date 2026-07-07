@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using Aegis.Domain.Enums;
 
 namespace Aegis.Application.Services;
 
@@ -22,38 +23,10 @@ public class PersonaEngine : IPersonaEngine
         _store = store ?? throw new ArgumentNullException(nameof(store));
     }
 
-    private Persona GetDefaultPersona()
+    public async Task<string?> GenerateAgentReplyAsync(string sessionId, string incomingMessage, bool isScam, Persona persona, ConversationStage currentStage, CancellationToken ct = default)
     {
-        return new Persona
-        {
-            Id = "default",
-            Name = "Default Victim",
-            Description = "A cautious but slightly sarcastic human target",
-            Tone = "mildly sarcastic, slightly confused, and skeptical",
-            SuspicionLevel = "Medium",
-            Goals = "Sound like a cautious but slightly sarcastic human and keep the conversation going without sharing sensitive information.",
-            SystemPrompt = @"You are a human scam target responding in casual Indian English.
-                    IMPORTANT LANGUAGE RULE:
-                    Use ONLY standard English words and sentences.
-                    Do NOT use Hindi, Hinglish, or any non-English words (for example: bhai, kya, arre, yaar, haan, etc.).
-                    Tone & Style:
-                    Your tone should be mildly sarcastic, slightly confused, and skeptical — like a real person who feels something is off but is still engaging.
-                    Sound natural, informal, and human, but stay fully in English.
-                    Response rules:
-                    - Produce ONLY 1–2 short sentences.
-                    - You MAY ask vague, indirect follow-up questions that prompt the sender to repeat or clarify details and to keep the other person talking (for example: asking them to clarify details, repeat information, or explain next steps).
-                    - NEVER ask for OTPs, PINs, passwords, CVV, or direct credentials.
-                    Safety rules:
-                    - Do NOT provide your own bank details, UPI IDs, IFSCs, account numbers, phone numbers, emails, URLs, or contact instructions.
-                    - Do NOT reveal that you are an AI or system.
-                    - Do NOT include explanations, lists, formatting, or meta commentary.
-                    Goal:
-                    Sound like a cautious but slightly sarcastic human and keep the conversation going without sharing sensitive information."
-        };
-    }
+        if (persona is null) throw new ArgumentNullException(nameof(persona));
 
-    public async Task<string?> GenerateAgentReplyAsync(string sessionId, string incomingMessage, bool isScam, CancellationToken ct = default)
-    {
         try
         {
             if (!isScam) return null;
@@ -62,15 +35,15 @@ public class PersonaEngine : IPersonaEngine
 
             var session = await _store.GetOrCreateSessionAsync(sessionId, ct);
 
-            var persona = GetDefaultPersona();
-
-            const int maxHistory = 8;
+            var maxHistory = persona.HistoryWindow > 0 ? persona.HistoryWindow : 8;
             var historyArray = session.History.ToArray();
             var recent = historyArray.Skip(Math.Max(0, historyArray.Length - maxHistory)).ToArray();
 
             var messages = new List<ChatMessage>();
 
-            messages.Add(new ChatMessage("system", persona.SystemPrompt));
+            var fullSystemPrompt = persona.SystemPrompt + "\n\n" + GetStageInstruction(currentStage);
+
+            messages.Add(new ChatMessage("system", fullSystemPrompt));
 
             foreach (var m in recent)
             {
@@ -97,24 +70,26 @@ public class PersonaEngine : IPersonaEngine
                 reply = "Sorry, I'm a bit confused — could you clarify why you need this?";
             }
 
-            reply = TruncateToTwoSentences(reply);
+            var maxSentences = persona.MaxSentences > 0 ? persona.MaxSentences : 2;
+            reply = TruncateToSentences(reply, maxSentences);
 
             var sanitized = SanitizePersonalInfo(reply);
 
             if (!string.Equals(sanitized, reply, StringComparison.Ordinal))
             {
-                reply = "That doesn’t sound right — can you explain what this is about?";
+                reply = "That doesn't sound right — can you explain what this is about?";
             }
             else if (IsUnsafeReply(sanitized))
             {
-                reply = "I don’t feel comfortable with that request.";
+                reply = "I don't feel comfortable with that request.";
             }
             else
             {
                 reply = sanitized;
             }
 
-            if (reply.Length > 250) reply = reply.Substring(0, 250).Trim();
+            var maxLength = persona.MaxReplyLength > 0 ? persona.MaxReplyLength : 250;
+            if (reply.Length > maxLength) reply = reply.Substring(0, maxLength).Trim();
 
             session.AppendMessage("agent", reply);
 
@@ -126,24 +101,37 @@ public class PersonaEngine : IPersonaEngine
         }
     }
 
-    private static string TruncateToTwoSentences(string text)
+    private static string GetStageInstruction(ConversationStage stage)
+    {
+        return stage switch
+        {
+            ConversationStage.Clarify => "STAGE OBJECTIVE (Clarify): Ask vague, indirect follow-up questions to prompt the sender to repeat or clarify details.",
+            ConversationStage.Delay => "STAGE OBJECTIVE (Delay): Give excuses for why you cannot complete the action right now, stalling for time (e.g. poor internet, busy, card not with you).",
+            ConversationStage.Extract => "STAGE OBJECTIVE (Extract): Act as if you are trying to comply, but ask them for exactly which account/UPI/link you should send to or use.",
+            ConversationStage.Confuse => "STAGE OBJECTIVE (Confuse): Give contradictory information or intentionally misunderstand their instructions to frustrate them.",
+            ConversationStage.Terminate => "STAGE OBJECTIVE (Terminate): Firmly but politely end the conversation without complying.",
+            _ => "STAGE OBJECTIVE (Clarify): Ask vague, indirect follow-up questions to prompt the sender to repeat or clarify details."
+        };
+    }
+
+    private static string TruncateToSentences(string text, int maxSentences)
     {
         if (string.IsNullOrWhiteSpace(text)) return text;
-        var parts = Regex.Split(text.Trim(), "(?<=[.!?])\s+");
-        if (parts.Length <= 2) return string.Join(" ", parts).Trim();
-        return string.Join(" ", parts.Take(2)).Trim();
+        var parts = Regex.Split(text.Trim(), @"(?<=[.!?])\s+");
+        if (parts.Length <= maxSentences) return string.Join(" ", parts).Trim();
+        return string.Join(" ", parts.Take(maxSentences)).Trim();
     }
 
     private static string SanitizePersonalInfo(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return text;
 
-        text = Regex.Replace(text, "\b[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,6}\b", "[redacted]", RegexOptions.Compiled);
-        text = Regex.Replace(text, "https?://\S+|www\.\S+", "[redacted]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-        text = Regex.Replace(text, "\b[a-zA-Z]{4}0[a-zA-Z0-9]{6}\b", "[redacted]", RegexOptions.Compiled);
-        text = Regex.Replace(text, "\b[\w.%-]{2,}@[A-Za-z]{2,}\b", "[redacted]", RegexOptions.Compiled);
-        text = Regex.Replace(text, "(?<!\d)(?:\+?91[\s-]?)?(?:\d[\s-]?){10,14}(?!\d)", "[redacted]", RegexOptions.Compiled);
-        text = Regex.Replace(text, "(?<!\d)\d{6,}(?!\d)", "[redacted]", RegexOptions.Compiled);
+        text = Regex.Replace(text, @"\b[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,6}\b", "[redacted]", RegexOptions.Compiled);
+        text = Regex.Replace(text, @"https?://\S+|www\.\S+", "[redacted]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, @"\b[a-zA-Z]{4}0[a-zA-Z0-9]{6}\b", "[redacted]", RegexOptions.Compiled);
+        text = Regex.Replace(text, @"\b[\w.%-]{2,}@[A-Za-z]{2,}\b", "[redacted]", RegexOptions.Compiled);
+        text = Regex.Replace(text, @"(?<!\d)(?:\+?91[\s-]?)?(?:\d[\s-]?){10,14}(?!\d)", "[redacted]", RegexOptions.Compiled);
+        text = Regex.Replace(text, @"(?<!\d)\d{6,}(?!\d)", "[redacted]", RegexOptions.Compiled);
 
         return text;
     }
@@ -154,9 +142,9 @@ public class PersonaEngine : IPersonaEngine
 
         var lower = text.ToLowerInvariant();
 
-        if (Regex.IsMatch(lower, "\b(otp|pin|password|passcode|one-time|one time)\b")) return true;
-        if (Regex.IsMatch(lower, "\b(i am a bot|i am an ai|as an ai|as a bot)\b")) return true;
-        if (Regex.IsMatch(lower, "(phone|call me|contact me|email|whatsapp|telegram|upi|bank account|ifsc|account number)")) return true;
+        if (Regex.IsMatch(lower, @"\b(otp|pin|password|passcode|one-time|one time)\b")) return true;
+        if (Regex.IsMatch(lower, @"\b(i am a bot|i am an ai|as an ai|as a bot)\b")) return true;
+        if (Regex.IsMatch(lower, @"(phone|call me|contact me|email|whatsapp|telegram|upi|bank account|ifsc|account number)")) return true;
 
         return false;
     }
