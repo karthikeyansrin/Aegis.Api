@@ -18,7 +18,8 @@ public static class DependencyInjection
         services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
         services.Configure<RateLimitOptions>(configuration.GetSection(RateLimitOptions.SectionName));
 
-        services.AddHttpClient<IGroqService, GroqService>((sp, client) =>
+        // Register Groq HTTP client — typed to GroqProvider
+        services.AddHttpClient<GroqProvider>((sp, client) =>
         {
             var options = sp.GetRequiredService<IOptions<OpenAIOptions>>().Value;
             var baseUrl = string.IsNullOrWhiteSpace(options.BaseUrl) ? "https://api.groq.com/openai/" : options.BaseUrl;
@@ -28,7 +29,23 @@ public static class DependencyInjection
         })
         .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler());
 
-        services.AddSingleton<ConversationStore>(sp => 
+        // Register concrete providers
+        services.AddSingleton<OpenAIProvider>();
+
+        // Register ProviderFactory which aggregates all ILLMProvider instances
+        services.AddSingleton<ProviderFactory>(sp =>
+        {
+            var groq = sp.GetRequiredService<GroqProvider>();
+            var openai = sp.GetRequiredService<OpenAIProvider>();
+            var opts = sp.GetRequiredService<IOptions<OpenAIOptions>>();
+            return new ProviderFactory(new ILLMProvider[] { groq, openai }, opts);
+        });
+
+        // Expose ILLMProvider — resolved from the factory using DefaultProvider setting
+        services.AddSingleton<ILLMProvider>(sp =>
+            sp.GetRequiredService<ProviderFactory>().GetDefault());
+
+        services.AddSingleton<IConversationStore, ConversationStore>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<DatabaseOptions>>().Value;
             return new ConversationStore(TimeSpan.FromMinutes(options.ExpiryMinutes));

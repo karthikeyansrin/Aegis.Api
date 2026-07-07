@@ -11,7 +11,7 @@ namespace Aegis.Infrastructure.Persistence;
 /// <summary>
 /// In-memory thread-safe conversation store with automatic expiry.
 /// </summary>
-public class ConversationStore : IDisposable
+public class ConversationStore : IConversationStore, IDisposable
 {
     private readonly ConcurrentDictionary<string, ConversationSession> _sessions = new();
     private readonly Timer _cleanupTimer;

@@ -1,28 +1,30 @@
-using Aegis.Infrastructure.AI;
-using Aegis.Infrastructure.Persistence;
-using Aegis.Domain.Entities;
-using Aegis.Application.DTOs;
-using Aegis.Application.Services;
 using Aegis.Application.Interfaces;
+using Aegis.Shared.Options;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Extensions.Options;
-using Aegis.Shared.Options;
-using Microsoft.Extensions.Logging;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Aegis.Infrastructure.AI;
 
-public class GroqService : IGroqService
+/// <summary>
+/// ILLMProvider implementation backed by the Groq API (OpenAI-compatible endpoint).
+/// </summary>
+public sealed class GroqProvider : ILLMProvider
 {
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<GroqService> _logger;
-    private readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
-    {
-        PropertyNameCaseInsensitive = true
-    };
+    public string ProviderName => "groq";
 
-    public GroqService(HttpClient httpClient, IOptions<OpenAIOptions> options, ILogger<GroqService> logger)
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<GroqProvider> _logger;
+
+    public GroqProvider(HttpClient httpClient, IOptions<OpenAIOptions> options, ILogger<GroqProvider> logger)
     {
         _httpClient = httpClient;
         _logger = logger;
@@ -38,9 +40,9 @@ public class GroqService : IGroqService
     }
 
     public async Task<ChatCompletionResult> CreateChatCompletionAsync(
-    string model,
-    IEnumerable<ChatMessage> messages,
-    CancellationToken ct = default)
+        string model,
+        IEnumerable<ChatMessage> messages,
+        CancellationToken ct = default)
     {
         var payload = new
         {
@@ -56,8 +58,8 @@ public class GroqService : IGroqService
                     JsonSerializer.Serialize(payload),
                     Encoding.UTF8,
                     "application/json");
-                
-                _logger.LogInformation($"[DEBUG] FINAL GROQ URL = {_httpClient.BaseAddress}v1/chat/completions");
+
+                _logger.LogInformation("[DEBUG] FINAL GROQ URL = {BaseAddress}v1/chat/completions", _httpClient.BaseAddress);
 
                 using var resp = await _httpClient.PostAsync("v1/chat/completions", content, ct);
                 var raw = await resp.Content.ReadAsStringAsync(ct);
@@ -89,7 +91,6 @@ public class GroqService : IGroqService
                     }
                 }
 
-                // fallback but still successful call
                 return new ChatCompletionResult { Success = true, Content = raw, RawJson = raw };
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
