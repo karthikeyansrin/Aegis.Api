@@ -1,79 +1,285 @@
-# Aegis
+# 🛡️ Aegis
 
-Aegis is a lightweight ASP.NET Core (.NET 8) Web API for an agentic scam detection and intelligence extraction service.
+> AI-powered Scam Detection, Intelligence Extraction & Autonomous Honeypot Platform.
 
-The API provides a single endpoint for analyzing messages, maintaining conversation state, extracting intelligence, and generating agent replies.
+Aegis is an AI-native security platform that detects scam messages, extracts actionable intelligence, and can autonomously engage malicious actors using human-like AI conversations.
 
-## API Endpoint
+Unlike traditional rule-based spam filters, Aegis combines LLM reasoning, structured entity extraction, conversation memory, and deception strategies to help applications identify and respond to modern scams.
 
-There is only one public-facing endpoint for analysis.
+---
 
-*   **Endpoint:** `POST https://aegisapi.up.railway.app/api/aegis/analyze`
-*   **Authentication:** `Authorization: Bearer <AEGIS_API_KEY>`
+# Why Aegis?
 
-### Intelligence Extraction
+Modern scams evolve faster than static detection rules.
 
-The API uses a two-step process to extract intelligence (UPI IDs, phone numbers, URLs, and bank accounts) from messages:
+Aegis provides a plug-and-play API that allows applications to:
 
-1.  **Regex Matching:** The service first uses a set of regular expressions to quickly find common patterns for each type of intelligence. This is fast and efficient for well-formatted data.
+- Detect scams in real time
+- Extract threat intelligence
+- Maintain multi-turn conversations
+- Generate believable AI responses
+- Build reusable scam intelligence
 
-2.  **LLM Fallback:** If the regex matching does not find any intelligence, the service falls back to using a Large Language Model (LLM). The LLM is given a specific prompt to extract the information from the message and return it in a structured JSON format. This allows the API to handle more complex and less structured messages.
+The long-term vision is to become the **AI Trust Layer** that sits between communication platforms and their users.
 
-### Sample Request
+---
 
-The request body must be a JSON object with a `session_id` and a `message`.
+# Current Features
 
-**cURL Example:**
-```bash
-curl -X POST https://aegisapi.up.railway.app/api/aegis/analyze \
-  -H "Authorization: Bearer dev-secret-key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "session_id": "conv-001",
-    "message": "Congratulations! You have won a prize. Please pay me at fraud@upi to claim it.",
-    "language_hint": "en"
-  }'
-```
+## AI Scam Detection
 
-**Powershell Example:**
-```bash
-Invoke-RestMethod -Method POST https://aegisapi.up.railway.app/api/aegis/analyze `
-  -Headers @{
-    "Content-Type" = "application/json"
-    "Authorization" = "Bearer dev-secret-key"
-  } `
-  -Body '{
-    "session_id": "test123",
-    "message": "Send money to fraud@upi"
-  }' |
-  ConvertTo-Json -Depth 10
-```
+Uses an LLM to classify incoming messages into:
 
-### Sample Response
+- Scam / Not Scam
+- Scam category
+- Confidence score
 
-The API will return a JSON object containing the analysis, extracted intelligence, and an agent reply.
+Example:
 
 ```json
 {
   "isScam": true,
   "scamType": "phishing",
-  "confidence": 0.95,
-  "agentReply": "Sorry, I am not comfortable sharing that information.",
+  "confidence": 0.98
+}
+```
+
+---
+
+## Intelligence Extraction
+
+Automatically extracts structured intelligence from scam conversations.
+
+Currently supported:
+
+- UPI IDs
+- Phone Numbers
+- URLs
+- Bank Account Numbers
+- IFSC Codes
+
+Regex is used for fast extraction.
+
+If structured entities cannot be identified confidently, an LLM fallback is used.
+
+---
+
+## Autonomous Honeypot Replies
+
+Generates realistic human-like responses that:
+
+- keep scammers engaged
+- avoid exposing the system
+- never leak sensitive information
+- never request or reveal credentials
+- maintain short conversational replies
+
+Example:
+
+> "That's strange... why exactly do you need me to transfer money first?"
+
+---
+
+## Conversation Memory
+
+Aegis maintains session state across requests.
+
+This allows:
+
+- multi-turn conversations
+- previous intelligence reuse
+- context-aware replies
+- cumulative entity extraction
+
+---
+
+## Secure REST API
+
+Single endpoint for scam analysis.
+
+```
+POST /api/aegis/analyze
+```
+
+Protected using API Key authentication.
+
+---
+
+## Production Deployment
+
+Currently deployed on Railway.
+
+The service exposes:
+
+- Analysis endpoint
+- Health endpoint
+- OpenAPI / Swagger
+
+---
+
+# Architecture
+
+```
+                Incoming Message
+                       │
+                       ▼
+               Scam Detection
+                       │
+             ┌─────────┴─────────┐
+             ▼                   ▼
+      Intelligence          Conversation
+       Extraction              Memory
+             │                   │
+             └─────────┬─────────┘
+                       ▼
+             Honeypot AI Agent
+                       │
+                       ▼
+                Structured Response
+```
+
+---
+
+# Technology Stack
+
+Backend
+
+- ASP.NET Core (.NET 8)
+- C#
+
+AI
+
+- OpenAI Compatible API
+- Structured Prompt Engineering
+
+Deployment
+
+- Railway
+
+Authentication
+
+- API Key Middleware
+
+---
+
+# Example Response
+
+```json
+{
+  "isScam": true,
+  "scamType": "phishing",
+  "confidence": 0.97,
+  "agentReply": "I'm not sure why I need to do that. Can you explain a bit more?",
   "extractedIntelligence": {
-    "upiIds": ["fraud@upi"],
-    "phoneNumbers": [],
+    "upiIds": [
+      "fraud@upi"
+    ],
+    "phoneNumbers": [
+      "9876543210"
+    ],
     "urls": [],
-    "bankAccounts": []
+    "bankAccounts": [
+      {
+        "accountNumber": "123456789012",
+        "ifsc": "HDFC0001234"
+      }
+    ]
   }
 }
 ```
 
-**Note:** The fields in the response, especially `scamType`, `confidence`, and `agentReply`, are generated by an LLM and may vary. In case of LLM failure, the API will return a safe default response.
+---
 
-## Health Check
+# Roadmap
 
-A public, unauthenticated health check endpoint is available at:
+## Phase 1 (Completed)
 
-*   **Endpoint:** `GET /health`
+- AI scam detection
+- Intelligence extraction
+- Honeypot responses
+- Conversation memory
+- Railway deployment
+- REST API
+- API authentication
 
-It returns a simple JSON response: `{"status":"ok"}`.
+---
+
+## Phase 2
+
+- Modern React dashboard
+- Conversation explorer
+- Intelligence viewer
+- Threat timeline
+- Swagger improvements
+- Docker support
+
+---
+
+## Phase 3
+
+Threat Intelligence Engine
+
+- IP reputation
+- URL reputation
+- Domain reputation
+- Email reputation
+- Threat scoring
+
+---
+
+## Phase 4
+
+Enterprise Security
+
+- Rate limiting
+- Redis caching
+- PostgreSQL
+- Structured logging
+- OpenTelemetry
+- Alerting
+
+---
+
+## Phase 5
+
+AI Trust Platform
+
+- MCP Server
+- SDKs
+- Multi-tenant SaaS
+- Policy Engine
+- Plugin Marketplace
+
+---
+
+# Long-Term Vision
+
+Aegis is evolving beyond a scam detection API.
+
+The goal is to become an **AI-native Trust Platform** that applications and AI agents can use before acting on untrusted communication.
+
+Instead of every application implementing its own security logic, applications can simply ask Aegis:
+
+> "Should I trust this?"
+
+and receive a structured decision with confidence, reasoning, and recommended actions.
+
+---
+
+# Future Integrations
+
+- WhatsApp
+- Banking Apps
+- Email Providers
+- Marketplaces
+- Dating Apps
+- Customer Support Platforms
+- AI Assistants
+- MCP Clients
+- Browser Extensions
+
+---
+
+# License
+
+MIT License
